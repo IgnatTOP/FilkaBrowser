@@ -11,19 +11,26 @@ jobs:
   build-windows:
     runs-on: windows-latest
 
+    env:
+      QT_VERSION: "6.7.2"
+      QT_ARCH: win64_msvc2019_64
+      QT_DIR: D:\Qt
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.7.2"
-          host: windows
-          target: desktop
-          arch: win64_msvc2019_64
-          modules: >-
-            qtwebengine
-            qtwebchannel
+      - name: Install Python aqtinstall
+        run: pip install aqtinstall
+
+      - name: Install Qt base
+        run: >
+          python -m aqt install-qt
+          windows desktop ${{ env.QT_VERSION }} ${{ env.QT_ARCH }}
+          --outputdir ${{ env.QT_DIR }}
+
+      - name: Install Qt modules
+        run: |
+          python -m aqt install-qt windows desktop ${{ env.QT_VERSION }} ${{ env.QT_ARCH }} -m qtwebengine qtwebchannel --outputdir ${{ env.QT_DIR }}
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -35,12 +42,13 @@ jobs:
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${{ env.QT_DIR }}/${{ env.QT_VERSION }}/msvc2019_64
 
       - name: Build
         run: cmake --build build --config Release
 
       - name: Deploy Qt
-        run: windeployqt --release --qmldir app/qml build/app/filka.exe
+        run: ${{ env.QT_DIR }}/${{ env.QT_VERSION }}/msvc2019_64/bin/windeployqt.exe --release --qmldir app/qml build/app/filka.exe
 
       - name: Package
         run: |
