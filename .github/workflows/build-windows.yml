@@ -41,21 +41,20 @@ jobs:
         run: cmake --build build --config Release
 
       - name: Deploy Qt
-        run: windeployqt --release --qmldir app/qml build/app/filka.exe
+        run: windeployqt --release --qmldir app/qml ${{ github.workspace }}/build/app/filka.exe
 
       - name: Package
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
           Copy-Item build/app/filka.exe dist/
           Copy-Item app/assets/filka.ico dist/
           Get-ChildItem build/app/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
-          Get-ChildItem build/app/platforms/*.dll -ErrorAction SilentlyContinue | ForEach-Object {
-            New-Item -ItemType Directory -Force -Path dist/platforms
-            Copy-Item $_ dist/platforms/
-          }
-          Get-ChildItem build/app/styles/*.dll -ErrorAction SilentlyContinue | ForEach-Object {
-            New-Item -ItemType Directory -Force -Path dist/styles
-            Copy-Item $_ dist/styles/
+          foreach ($subdir in @("platforms", "styles", "imageformats", "tls", "networkinformation", "sqldrivers", "xcbglintegrations", "wayland-graphics-integration-client", "wayland-shell-integration")) {
+            if (Test-Path "build/app/$subdir") {
+              New-Item -ItemType Directory -Force -Path "dist/$subdir"
+              Copy-Item "build/app/$subdir/*" "dist/$subdir/" -ErrorAction SilentlyContinue
+            }
           }
 
       - name: Upload artifact
