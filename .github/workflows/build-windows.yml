@@ -23,7 +23,6 @@ jobs:
           arch: win64_msvc2019_64
           modules: >-
             qtwebengine
-            qtsvg
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
