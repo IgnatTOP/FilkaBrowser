@@ -89,10 +89,6 @@ Item {
                     request.accept()
                     root.fullScreenRequested(request.toggleOn)
                 }
-                // Surface permission prompts to the shell's allow/block bar.
-                onPermissionRequested: function(permission) {
-                    root.permissionRequested(permission)
-                }
                 onPdfPrintingFinished: function(path, success) {
                     if (!success) console.warn("Filka: PDF print failed for", path)
                 }
