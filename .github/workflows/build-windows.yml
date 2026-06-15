@@ -40,25 +40,20 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Find executable
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path build -Filter "filka.exe" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Found: $($_.FullName)" }
-
       - name: Deploy Qt
-        run: windeployqt --release --qmldir app/qml ${{ github.workspace }}/build/app/filka.exe
+        run: windeployqt --release --qmldir app/qml ${{ github.workspace }}/build/filka.exe
 
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          Copy-Item build/app/filka.exe dist/
+          Copy-Item build/filka.exe dist/
           Copy-Item app/assets/filka.ico dist/
-          Get-ChildItem build/app/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
-          foreach ($subdir in @("platforms", "styles", "imageformats", "tls", "networkinformation", "sqldrivers", "xcbglintegrations", "wayland-graphics-integration-client", "wayland-shell-integration")) {
-            if (Test-Path "build/app/$subdir") {
+          Get-ChildItem build/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
+          foreach ($subdir in @("platforms", "styles", "imageformats", "tls", "networkinformation", "sqldrivers")) {
+            if (Test-Path "build/$subdir") {
               New-Item -ItemType Directory -Force -Path "dist/$subdir"
-              Copy-Item "build/app/$subdir/*" "dist/$subdir/" -ErrorAction SilentlyContinue
+              Copy-Item "build/$subdir/*" "dist/$subdir/" -ErrorAction SilentlyContinue
             }
           }
 
