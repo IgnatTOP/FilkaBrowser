@@ -24,7 +24,7 @@ Rectangle {
         spacing: Theme.s2
 
         Icon {
-            iconName: "arrow-up-circle"
+            name: "sparkles"
             size: 20
             color: Theme.accent
         }
@@ -67,7 +67,7 @@ Rectangle {
                 spacing: Theme.s1
                 Icon {
                     anchors.verticalCenter: parent.verticalCenter
-                    iconName: "download"
+                    name: "download"
                     size: 13
                     color: "white"
                 }
@@ -87,7 +87,7 @@ Rectangle {
         Rectangle {
             width: 22; height: 22; radius: 11
             color: closeHover.hovered ? Theme.glassMed : "transparent"
-            Icon { anchors.centerIn: parent; iconName: "x"; size: 11; color: Theme.textMuted }
+            Icon { anchors.centerIn: parent; name: "x"; size: 11; color: Theme.textMuted }
             HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: UpdateChecker.dismissed = true }
         }
