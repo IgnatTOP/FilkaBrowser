@@ -38,39 +38,37 @@ jobs:
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
 
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Deploy Qt
-        run: windeployqt --release --qmldir app/qml ${{ github.workspace }}/build/filka.exe
+      - name: Install
+        run: cmake --install build
 
-      - name: Package
+      - name: Deploy Qt
+        run: windeployqt --release --qmldir app/qml ${{ github.workspace }}/install/bin/filka.exe
+
+      - name: Copy icon
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist
-          Copy-Item build/filka.exe dist/
-          Copy-Item app/assets/filka.ico dist/
-          Get-ChildItem build/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
-          foreach ($subdir in @("platforms", "styles", "imageformats", "tls", "networkinformation", "sqldrivers")) {
-            if (Test-Path "build/$subdir") {
-              New-Item -ItemType Directory -Force -Path "dist/$subdir"
-              Copy-Item "build/$subdir/*" "dist/$subdir/" -ErrorAction SilentlyContinue
-            }
-          }
+        run: Copy-Item app/assets/filka.ico install/bin/
+
+      - name: List deployed files
+        shell: pwsh
+        run: Get-ChildItem -Path install/bin -Recurse | ForEach-Object { Write-Host $_.FullName }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: filka-windows-x86_64
-          path: dist/
+          path: install/bin/
           if-no-files-found: error
 
       - name: Package exe for release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
-          Compress-Archive -Path dist/* -DestinationPath filka-windows-x86_64.zip
+          Compress-Archive -Path install/bin/* -DestinationPath filka-windows-x86_64.zip
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
