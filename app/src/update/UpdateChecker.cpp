@@ -58,7 +58,7 @@ void UpdateChecker::checkForUpdates()
         if (tagName.startsWith('v'))
             tagName = tagName.mid(1);
 
-        QString currentVersion = QStringLiteral("0.1.0");
+        QString currentVersion = QStringLiteral("0.2.0");
 
         if (!versionIsNewer(currentVersion, tagName))
             return;
