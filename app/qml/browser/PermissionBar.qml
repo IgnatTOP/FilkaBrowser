@@ -82,11 +82,11 @@ Item {
                 TapHandler { onTapped: root.grant() }
             }
             Rectangle {
-                width: 80; height: 30; radius: Theme.radiusSm
+                width: 96; height: 30; radius: Theme.radiusSm
                 color: blockHover.hovered ? Theme.glassHigh : Theme.glassLow
                 border.width: 1; border.color: Theme.glassStroke
                 Text {
-                    anchors.centerIn: parent; text: "Блок."
+                    anchors.centerIn: parent; text: "Запретить"
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
                 }

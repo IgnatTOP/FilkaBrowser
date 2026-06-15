@@ -60,10 +60,10 @@ FocusScope {
             font.pixelSize: Theme.fontSizeSm
             selectByMouse: true
             verticalAlignment: TextInput.AlignVCenter
-            placeholderText: "Search the web or enter an address"
+            placeholderText: "Поиск в сети или адрес сайта"
             placeholderTextColor: Theme.textMuted
             background: null
-            Accessible.name: "Address bar"
+            Accessible.name: "Адресная строка"
 
             onActiveFocusChanged: if (activeFocus) selectAll()
             onAccepted: {

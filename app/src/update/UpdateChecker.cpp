@@ -1,5 +1,6 @@
 #include "UpdateChecker.h"
 
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -26,12 +27,19 @@ void UpdateChecker::setDismissed(bool value)
     emit dismissedChanged();
 }
 
+QString UpdateChecker::currentVersion() const
+{
+    const QString v = QCoreApplication::applicationVersion();
+    return v.isEmpty() ? QStringLiteral("0.1.0") : v;
+}
+
 void UpdateChecker::checkForUpdates()
 {
     if (m_checking)
         return;
 
     setChecking(true);
+    setUpToDate(false);
 
     QNetworkRequest request{QUrl(kRepoApiUrl)};
     request.setRawHeader("Accept", "application/vnd.github+json");
@@ -58,10 +66,11 @@ void UpdateChecker::checkForUpdates()
         if (tagName.startsWith('v'))
             tagName = tagName.mid(1);
 
-        QString currentVersion = QStringLiteral("0.1.0");
-
-        if (!versionIsNewer(currentVersion, tagName))
+        if (!versionIsNewer(currentVersion(), tagName)) {
+            // Already on the latest build — let the UI confirm the check ran.
+            setUpToDate(true);
             return;
+        }
 
         // Find platform-matching asset.
         QString assetUrl;
@@ -87,6 +96,9 @@ void UpdateChecker::checkForUpdates()
         setDownloadUrl(assetUrl);
         setReleaseNotes(notes);
         setUpdateAvailable(true);
+        // A fresh release supersedes any earlier "dismissed" so the banner and
+        // the settings entry surface it again.
+        setDismissed(false);
     });
 }
 
@@ -110,6 +122,14 @@ void UpdateChecker::setUpdateAvailable(bool value)
         return;
     m_updateAvailable = value;
     emit updateAvailableChanged();
+}
+
+void UpdateChecker::setUpToDate(bool value)
+{
+    if (m_upToDate == value)
+        return;
+    m_upToDate = value;
+    emit upToDateChanged();
 }
 
 void UpdateChecker::setLatestVersion(const QString &version)

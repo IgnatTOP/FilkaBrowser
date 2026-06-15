@@ -69,3 +69,4 @@ valgrind.out.*
 .cache/
 *.log
 .mimocode/
+app/assets/filka.ico

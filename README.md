@@ -105,6 +105,39 @@ cmake --build build -j$(nproc)
 cmake --install build --prefix ~/.local
 ```
 
+### Сборка на Windows
+
+#### Автоматическая (GitHub Actions)
+
+При пуше в `main` или создании тега `v*` автоматически собирается Windows-билд.
+Скачать готовый `filka-windows-x86_64.exe` можно из раздела **Actions → Artifacts**.
+
+#### Локальная сборка
+
+Требования:
+- **Visual Studio 2022** (MSVC v143+)
+- **CMake** 3.21+
+- **Qt 6.7+** (модули: Core, Gui, Qml, Quick, QuickControls2, WebEngineQuick, Svg, Sql, Network)
+- **Ninja** (рекомендуется) или Visual Studio generator
+- **ImageMagick** (для генерации иконки из `logo.png`)
+
+```powershell
+# Настроить (от Developer Command Prompt for VS)
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+# Собрать
+cmake --build build --config Release
+
+# Запустить
+.\build\app\filka.exe
+```
+
+#### Упаковка
+
+```powershell
+windeployqt --release --qmldir app/qml build/app/filka.exe
+```
+
 ---
 
 ## Структура проекта

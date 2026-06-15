@@ -47,6 +47,7 @@ void WorkspaceModel::saveSession()
     }
     m_store.endArray();
     m_store.setValue(QStringLiteral("session/activeWorkspace"), m_activeIndex);
+    m_store.sync();
 }
 
 void WorkspaceModel::addWorkspace(const QString &name, const QString &glyph,

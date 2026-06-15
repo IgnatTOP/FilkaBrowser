@@ -17,6 +17,11 @@ Rectangle {
     signal activated()
     signal closed()
 
+    // Whether the close affordance should be offered right now.
+    readonly property bool showClose: !root.pinned && (hover.hovered || root.active)
+    // In compact mode the close button replaces the favicon on hover/active.
+    readonly property bool compactClose: root.compact && showClose
+
     radius: Theme.radiusMd
     color: active ? Theme.glassHigh
           : hover.hovered ? Theme.glassMed : "transparent"
@@ -39,9 +44,14 @@ Rectangle {
     TapHandler { onTapped: root.activated() }
 
     Row {
-        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                  leftMargin: Theme.s3; rightMargin: Theme.s2 }
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: root.compact ? undefined : parent.left
+        anchors.horizontalCenter: root.compact ? parent.horizontalCenter : undefined
+        anchors.right: root.compact ? undefined : parent.right
+        anchors.leftMargin: Theme.s3
+        anchors.rightMargin: Theme.s2
         spacing: Theme.s2
+        visible: !root.compactClose
 
         // Favicon, or a spinning loader while the page loads.
         Item {
@@ -74,7 +84,7 @@ Rectangle {
 
         Text {
             visible: !root.compact
-            width: root.width - 70
+            width: Math.max(0, root.width - 70)
             anchors.verticalCenter: parent.verticalCenter
             text: root.title
             color: root.active ? Theme.textPrimary : Theme.textSecondary
@@ -85,10 +95,14 @@ Rectangle {
         }
     }
 
-    // Close button (hover/active, hidden for pinned tabs).
+    // Close button. In the roomy layout it sits at the trailing edge; in the
+    // compact layout it takes the favicon's place (centred) on hover/active.
     IconButton {
-        visible: !root.compact && !root.pinned && (hover.hovered || root.active)
-        anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 4 }
+        visible: root.showClose
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.right: root.compact ? undefined : parent.right
+        anchors.rightMargin: 4
+        anchors.horizontalCenter: root.compact ? parent.horizontalCenter : undefined
         iconName: "x"; size: 22; iconSize: 12
         Accessible.name: "Close tab"
         onClicked: root.closed()

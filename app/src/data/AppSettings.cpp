@@ -36,6 +36,10 @@ void AppSettings::setOnboarded(bool value)
         return;
     m_onboarded = value;
     m_store.setValue(QStringLiteral("general/onboarded"), value);
+    // Flush immediately: onboarding (and other prefs) must survive even if the
+    // process is killed rather than quit cleanly, otherwise the welcome screen
+    // would reappear on the next launch.
+    m_store.sync();
     emit onboardedChanged();
 }
 
@@ -45,6 +49,7 @@ void AppSettings::setDarkMode(bool value)
         return;
     m_darkMode = value;
     m_store.setValue(QStringLiteral("appearance/darkMode"), value);
+    m_store.sync();
     emit darkModeChanged();
 }
 
@@ -54,6 +59,7 @@ void AppSettings::setAccentColor(const QString &value)
         return;
     m_accentColor = value;
     m_store.setValue(QStringLiteral("appearance/accentColor"), value);
+    m_store.sync();
     emit accentColorChanged();
 }
 
@@ -63,6 +69,7 @@ void AppSettings::setStartPageAurora(bool value)
         return;
     m_startPageAurora = value;
     m_store.setValue(QStringLiteral("appearance/startPageAurora"), value);
+    m_store.sync();
     emit startPageAuroraChanged();
 }
 
@@ -72,6 +79,7 @@ void AppSettings::setSearchEngine(const QString &value)
         return;
     m_searchEngine = value;
     m_store.setValue(QStringLiteral("search/engine"), value);
+    m_store.sync();
     emit searchEngineChanged();
 }
 
@@ -81,6 +89,7 @@ void AppSettings::setHomePage(const QString &value)
         return;
     m_homePage = value;
     m_store.setValue(QStringLiteral("general/homePage"), value);
+    m_store.sync();
     emit homePageChanged();
 }
 

@@ -8,14 +8,17 @@ import Filka
 Rectangle {
     id: root
     visible: UpdateChecker.updateAvailable && !UpdateChecker.dismissed
-    height: visible ? 52 : 0
+    // In a ColumnLayout the explicit `height` is ignored — the layout sizes
+    // children by their implicitHeight. Drive that instead so the banner (and
+    // its background) actually gets a height when shown.
+    implicitHeight: visible ? 52 : 0
     clip: true
     radius: Theme.radiusLg
     color: Theme.bgRaised
     border.width: 1
     border.color: Theme.accent
 
-    Behavior on height { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
+    Behavior on implicitHeight { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
 
     RowLayout {
         anchors.fill: parent
@@ -53,8 +56,9 @@ Rectangle {
         }
 
         Rectangle {
-            width: dlRow.width + Theme.s3 * 2
-            height: 30
+            Layout.preferredWidth: dlRow.width + Theme.s3 * 2
+            Layout.preferredHeight: 30
+            Layout.alignment: Qt.AlignVCenter
             radius: Theme.radiusPill
             gradient: Gradient {
                 orientation: Gradient.Horizontal
@@ -85,7 +89,9 @@ Rectangle {
         }
 
         Rectangle {
-            width: 22; height: 22; radius: 11
+            Layout.preferredWidth: 22; Layout.preferredHeight: 22
+            Layout.alignment: Qt.AlignVCenter
+            radius: 11
             color: closeHover.hovered ? Theme.glassMed : "transparent"
             Icon { anchors.centerIn: parent; name: "x"; size: 11; color: Theme.textMuted }
             HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }

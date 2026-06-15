@@ -1,5 +1,21 @@
+if(WIN32)
+    find_program(MAGICK_CMD magick convert)
+    if(MAGICK_CMD AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png")
+        add_custom_command(
+            OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico"
+            COMMAND ${MAGICK_CMD} "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png"
+                    -define icon:auto-resize=16,32,48,64,128,256
+                    "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png"
+            COMMENT "Generating Windows icon from logo.png"
+        )
+        set(FILKA_ICO "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico")
+    endif()
+endif()
+
 qt_add_executable(filka
     src/main.cpp
+    $<$<PLATFORM_ID:Windows>:filka.rc>
 )
 
 # Lucide-style SVG icon set, bundled into the QML module resources at
@@ -81,6 +97,10 @@ target_link_libraries(filka PRIVATE
     Qt6::Sql
     Qt6::Network
 )
+
+if(WIN32)
+    set_target_properties(filka PROPERTIES WIN32_EXECUTABLE ON)
+endif()
 
 target_compile_definitions(filka PRIVATE
     $<$<CONFIG:Release>:QT_NO_DEBUG_OUTPUT>

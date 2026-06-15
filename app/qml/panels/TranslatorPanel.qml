@@ -151,7 +151,6 @@ Item {
     }
 
     // ---- Floating bar UI ----
-    visible: open
 
     // Glass background
     Rectangle {
@@ -161,15 +160,18 @@ Item {
         color: Theme.bgRaised
         border.width: 1
         border.color: Theme.glassStroke
-        // Subtle shadow
-        layer.enabled: true
-        layer.effect: null
     }
 
     Row {
         id: barRow
         anchors.centerIn: parent
         spacing: Theme.s2
+
+        // Leading mark — identifies the bar as the page translator.
+        Icon {
+            anchors.verticalCenter: parent.verticalCenter
+            name: "languages"; size: 16; color: Theme.accent
+        }
 
         // Language selector
         Rectangle {

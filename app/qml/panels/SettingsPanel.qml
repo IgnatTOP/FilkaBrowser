@@ -265,12 +265,118 @@ SidePanel {
                     }
                     Text {
                         anchors { right: parent.right; rightMargin: Theme.s3; verticalCenter: parent.verticalCenter }
-                        text: HistoryModel.count + " записей"
+                        text: HistoryModel.count + " " + Theme.plural(HistoryModel.count, "запись", "записи", "записей")
                         color: Theme.textMuted
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                     }
                     HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: HistoryModel.clear() }
+                }
+            }
+
+            // ---- Updates ----
+            Column {
+                width: parent.width
+                spacing: Theme.s2
+                Text {
+                    text: "Обновления"
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
+                    font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase
+                }
+                Rectangle {
+                    width: parent.width
+                    height: updCol.height + Theme.s3 * 2
+                    radius: Theme.radiusMd
+                    color: Theme.glassLow
+                    border.width: 1
+                    border.color: UpdateChecker.updateAvailable ? Theme.accent : Theme.glassStroke
+                    Behavior on border.color { ColorAnimation { duration: Motion.fast } }
+
+                    Column {
+                        id: updCol
+                        anchors { left: parent.left; right: parent.right; top: parent.top
+                                  margins: Theme.s3 }
+                        spacing: Theme.s2
+
+                        Row {
+                            width: parent.width
+                            spacing: Theme.s2
+                            Icon {
+                                anchors.verticalCenter: parent.verticalCenter
+                                name: UpdateChecker.updateAvailable ? "sparkles" : "shield-check"
+                                size: 18
+                                color: UpdateChecker.updateAvailable ? Theme.accent : Theme.textSecondary
+                            }
+                            Column {
+                                width: parent.width - 18 - checkBtn.width - Theme.s2 * 2
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 1
+                                Text {
+                                    text: "Filka " + UpdateChecker.currentVersion
+                                    color: Theme.textPrimary
+                                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
+                                    font.weight: Font.Medium
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: UpdateChecker.checking
+                                          ? "Проверяем наличие обновлений…"
+                                          : UpdateChecker.updateAvailable
+                                            ? "Доступна версия " + UpdateChecker.latestVersion
+                                            : UpdateChecker.upToDate
+                                              ? "У вас актуальная версия"
+                                              : "Нажмите, чтобы проверить обновления"
+                                    color: UpdateChecker.updateAvailable ? Theme.accent : Theme.textMuted
+                                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
+                                    elide: Text.ElideRight
+                                }
+                            }
+                            Rectangle {
+                                id: checkBtn
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: checkLbl.implicitWidth + Theme.s4; height: 32
+                                radius: Theme.radiusPill
+                                color: checkHover.hovered ? Theme.glassHigh : Theme.glassMed
+                                border.width: 1; border.color: Theme.glassStroke
+                                Behavior on color { ColorAnimation { duration: Motion.fast } }
+                                Text {
+                                    id: checkLbl
+                                    anchors.centerIn: parent
+                                    text: UpdateChecker.checking ? "Проверка…" : "Проверить"
+                                    color: Theme.textPrimary
+                                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
+                                    font.weight: Font.Medium
+                                }
+                                HoverHandler { id: checkHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: if (!UpdateChecker.checking) UpdateChecker.checkForUpdates() }
+                            }
+                        }
+
+                        Rectangle {
+                            visible: UpdateChecker.updateAvailable
+                            width: parent.width; height: 40
+                            radius: Theme.radiusMd
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: Theme.electricBlue }
+                                GradientStop { position: 1.0; color: Theme.auroraPurple }
+                            }
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: Theme.s2
+                                Icon { anchors.verticalCenter: parent.verticalCenter; name: "download"; size: 14; color: "white" }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "Скачать обновление"
+                                    color: "white"
+                                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm; font.weight: Font.DemiBold
+                                }
+                            }
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: UpdateChecker.openDownload() }
+                        }
+                    }
                 }
             }
         }

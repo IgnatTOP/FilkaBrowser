@@ -162,15 +162,16 @@ Item {
     }
 
     // ===== Top chrome: optional horizontal tab bar + toolbar =====
-    Column {
+    ColumnLayout {
         id: chrome
         visible: !root.fullScreen
         anchors { top: parent.top; left: parent.left; right: parent.right }
+        spacing: 0
 
         // Horizontal tab bar (only when tabs are on top).
         TabPanel {
-            width: chrome.width
-            height: root.verticalTabs ? 0 : 48
+            Layout.fillWidth: true
+            Layout.preferredHeight: root.verticalTabs ? 0 : 48
             visible: !root.verticalTabs
             vertical: false
             workspaces: workspaces
@@ -178,8 +179,8 @@ Item {
 
         // Navigation toolbar (operates on the active view).
         Item {
-            width: chrome.width
-            height: 52
+            Layout.fillWidth: true
+            Layout.preferredHeight: 52
 
             RowLayout {
                 anchors.fill: parent
@@ -227,7 +228,6 @@ Item {
                     onNavigate: (text) => { if (root.activeView) root.activeView.url = text }
                 }
 
-                // Bookmark star — toggles the current page.
                 IconButton {
                     iconName: "bookmark"; size: 34
                     enabled: root.currentUrl.length > 0
@@ -237,7 +237,6 @@ Item {
                     onClicked: root.toggleBookmark()
                 }
 
-                // Zoom badge — only while zoomed; tap to reset to 100%.
                 Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                     visible: Math.abs(root.zoomFactor - 1) > 0.01
@@ -300,14 +299,14 @@ Item {
 
         // Saved-page chips under the toolbar.
         BookmarksBar {
-            width: chrome.width
+            Layout.fillWidth: true
             onNavigate: (url) => { if (root.activeView) root.activeView.url = url }
         }
 
         // In-page search bar (Ctrl+F) — collapsed to 0 height when inactive.
         FindBar {
             id: findBar
-            width: chrome.width
+            Layout.fillWidth: true
             view: root.activeView
             active: root.showFind
             onClosed: root.showFind = false
@@ -316,7 +315,7 @@ Item {
         // Site permission prompt (camera/mic/location) — chrome-level so it
         // renders above web content.
         PermissionBar {
-            width: chrome.width
+            Layout.fillWidth: true
             permission: root.pendingPermission
             onDecided: root.pendingPermission = null
         }
@@ -371,7 +370,7 @@ Item {
         // Hiding only toggles visibility — pages keep their state and never reload.
         Item {
             id: content
-            visible: !root.showHistory && !root.showSettings && !root.showDownloads
+            visible: !root.showHistory && !root.showSettings && !root.showDownloads && !root.showTranslator
             anchors {
                 left: sidebar.right; right: parent.right
                 top: parent.top; bottom: parent.bottom

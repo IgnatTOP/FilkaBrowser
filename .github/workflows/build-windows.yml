@@ -1,0 +1,65 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.7.3"
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: >-
+            qtwebengine
+            qtsvg
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Generate Windows icon
+        run: magick app/assets/logo.png -define icon:auto-resize=16,32,48,64,128,256 app/assets/filka.ico
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Deploy Qt
+        run: windeployqt --release --qmldir app/qml build/app/filka.exe
+
+      - name: Package
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item build/app/filka.exe dist/
+          Copy-Item app/assets/filka.ico dist/
+          Get-ChildItem build/app/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
+          Get-ChildItem build/app/platforms/*.dll -ErrorAction SilentlyContinue | ForEach-Object {
+            New-Item -ItemType Directory -Force -Path dist/platforms
+            Copy-Item $_ dist/platforms/
+          }
+          Get-ChildItem build/app/styles/*.dll -ErrorAction SilentlyContinue | ForEach-Object {
+            New-Item -ItemType Directory -Force -Path dist/styles
+            Copy-Item $_ dist/styles/
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: filka-windows-x86_64
+          path: dist/
+          if-no-files-found: error

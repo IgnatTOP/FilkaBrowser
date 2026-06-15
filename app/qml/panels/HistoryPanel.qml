@@ -33,7 +33,7 @@ SidePanel {
             height: 30
             Text {
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                text: HistoryModel.count + " записей"
+                text: HistoryModel.count + " " + Theme.plural(HistoryModel.count, "запись", "записи", "записей")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeXs
