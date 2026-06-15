@@ -98,10 +98,6 @@ target_link_libraries(filka PRIVATE
     Qt6::Network
 )
 
-if(WIN32)
-    set_target_properties(filka PROPERTIES WIN32_EXECUTABLE ON)
-endif()
-
 target_compile_definitions(filka PRIVATE
     $<$<CONFIG:Release>:QT_NO_DEBUG_OUTPUT>
 )

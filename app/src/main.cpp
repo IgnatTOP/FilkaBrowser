@@ -16,6 +16,10 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_WIN
+    qputenv("QTWEBENGINE_DISABLE_SANDBOX", "1");
+#endif
+
     // --- Chromium tuning (must be set before WebEngine is initialised) ---
     // Comprehensive flags for smooth scrolling, GPU compositing, and
     // responsive heavy pages. Mirrors what premium Chromium-based browsers
