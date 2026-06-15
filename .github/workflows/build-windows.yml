@@ -47,11 +47,16 @@ jobs:
         run: cmake --install build
 
       - name: Deploy Qt
-        run: windeployqt --release --qmldir app/qml ${{ github.workspace }}/install/bin/filka.exe
+        run: windeployqt --release --compiler-runtime --qmldir app/qml ${{ github.workspace }}/install/bin/filka.exe
 
       - name: Copy icon
         shell: pwsh
         run: Copy-Item app/assets/filka.ico install/bin/
+
+      - name: Check DLL dependencies
+        shell: pwsh
+        run: |
+          dumpbin /dependents install/bin/filka.exe 2>&1 | Select-String "\.dll"
 
       - name: List deployed files
         shell: pwsh
