@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setOrganizationName("Filka");
     app.setApplicationName("Filka Browser");
-    app.setApplicationVersion(QStringLiteral("0.2.0"));
+    app.setApplicationVersion(QStringLiteral("0.1.0"));
 
     // Filka brand mark — used for the window/taskbar icon (the same asset is
     // bundled into the QML module for in-app branding).
