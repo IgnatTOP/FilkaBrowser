@@ -40,6 +40,11 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
+      - name: Find executable
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path build -Filter "filka.exe" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Found: $($_.FullName)" }
+
       - name: Deploy Qt
         run: windeployqt --release --qmldir app/qml ${{ github.workspace }}/build/app/filka.exe
 
