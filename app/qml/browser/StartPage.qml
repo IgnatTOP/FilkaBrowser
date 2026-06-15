@@ -113,9 +113,23 @@ Item {
                 delegate: Item {
                     id: tile
                     required property var modelData
+                    required property int index
                     Layout.alignment: Qt.AlignHCenter
                     implicitWidth: 84
                     implicitHeight: 92
+
+                    // Staggered entrance animation.
+                    opacity: 0
+                    y: 12
+                    Component.onCompleted: tileEntrance.start()
+                    SequentialAnimation {
+                        id: tileEntrance
+                        PauseAnimation { duration: 80 + tile.index * 50 }
+                        ParallelAnimation {
+                            NumberAnimation { target: tile; property: "opacity"; to: 1; duration: 300; easing.type: Motion.standard }
+                            NumberAnimation { target: tile; property: "y"; to: 0; duration: 350; easing.type: Motion.emphasized }
+                        }
+                    }
 
                     Column {
                         anchors.centerIn: parent

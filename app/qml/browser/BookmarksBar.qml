@@ -33,7 +33,9 @@ Item {
                     radius: Theme.radiusSm
                     color: chipHover.hovered ? Theme.glassMed : Theme.glassLow
                     border.width: 1; border.color: Theme.glassStroke
+                    scale: chipHover.hovered ? 1.04 : 1.0
                     Behavior on color { ColorAnimation { duration: Motion.fast } }
+                    Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
 
                     Row {
                         id: row
@@ -49,7 +51,9 @@ Item {
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                             elide: Text.ElideRight
-                            width: Math.min(130, implicitWidth)
+                            width: Math.min(110, implicitWidth)
+                            rightPadding: chipHover.hovered ? 18 : 0
+                            Behavior on rightPadding { NumberAnimation { duration: Motion.fast } }
                         }
                     }
                     // Remove affordance on hover.

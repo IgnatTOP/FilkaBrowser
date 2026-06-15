@@ -429,8 +429,8 @@ Item {
         activeView: root.activeView
         visible: open && !root.showHistory && !root.showSettings && !root.showDownloads
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: Theme.s2
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Theme.s3
         width: Math.min(520, parent.width - Theme.s4)
         z: 300
         onRequestClose: root.showTranslator = false

@@ -43,6 +43,7 @@ ApplicationWindow {
         clip: true
         border.width: 1
         border.color: Theme.glassHairline
+        Behavior on color { ColorAnimation { duration: Motion.slow; easing.type: Motion.standard } }
 
         // ---- Animated aurora backdrop (blurred drifting accent blobs) ----
         Item {
@@ -144,6 +145,15 @@ ApplicationWindow {
                 }
             }
 
+            // Auto-update banner — slides in below the chrome when a newer
+            // release is found, so it's the first thing the user sees.
+            UpdateBanner {
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.s3
+                Layout.rightMargin: Theme.s3
+                Layout.topMargin: visible ? Theme.s2 : 0
+            }
+
             // Browsing surface (M2): navigation toolbar + Qt WebEngine view.
             BrowserView {
                 id: browser
@@ -151,14 +161,6 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 onFullScreenChanged: fullScreen ? appWindow.showFullScreen()
                                                 : appWindow.showNormal()
-            }
-
-            // Auto-update banner — slides in when a newer release is found.
-            UpdateBanner {
-                Layout.fillWidth: true
-                Layout.leftMargin: Theme.s3
-                Layout.rightMargin: Theme.s3
-                Layout.bottomMargin: Theme.s2
             }
         }
 

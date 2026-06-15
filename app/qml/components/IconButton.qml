@@ -29,8 +29,8 @@ Button {
         radius: Theme.radiusSm
         color: control.pressed ? Theme.glassHigh
              : (control.hovered || control.active) ? control.hoverColor : "transparent"
-        scale: control.pressed ? 0.9 : 1.0
-        Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
+        scale: control.pressed ? 0.9 : (control.hovered ? 1.08 : 1.0)
+        Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
         Behavior on color { ColorAnimation { duration: Motion.fast } }
     }
 }

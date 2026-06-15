@@ -1,5 +1,6 @@
 import QtQuick
 import QtWebEngine
+import QtQuick.Effects
 import Filka
 
 // WebPane — the live web-view stack for ONE workspace. One WebEngineView per
@@ -33,10 +34,9 @@ Item {
     }
 
     Rectangle {
+        id: clipFrame
         anchors.fill: parent
         radius: Theme.radiusLg
-        // Transparent on the start page so the aurora backdrop shows through;
-        // opaque white behind real web content.
         color: root.showWeb ? "white" : "transparent"
         clip: true
 
@@ -52,6 +52,10 @@ Item {
                 profile: filkaProfile
                 visible: index === root.tabsModel.activeIndex && root.showWeb
                 z: visible ? 1 : 0
+                // Force offscreen rendering so the parent's rounded-clip actually
+                // applies. Without this, WebEngineView composites above QML and
+                // ignores the parent's clip/radius.
+                layer.enabled: true
                 Component.onCompleted: url = model.url
                 onUrlChanged: root.tabsModel.updateUrl(index, url)
                 onTitleChanged: root.tabsModel.updateTitle(index, title)
