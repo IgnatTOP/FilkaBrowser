@@ -27,7 +27,4 @@ find_package(Qt6 6.7 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.7)
 
-# Auto-generate qmldir for QML files kept in subdirectories of the module.
-qt_policy(SET QTP0004 NEW)
-
 add_subdirectory(app)
