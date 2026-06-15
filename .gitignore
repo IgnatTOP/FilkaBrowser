@@ -1,0 +1,71 @@
+# ── Build ──────────────────────────────────────────────
+/build/
+/build-*/
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.exe
+*.a
+*.lib
+
+# ── CMake ──────────────────────────────────────────────
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+.cmake/
+_deps/
+install_manifest.txt
+
+# ── Qt / QML ──────────────────────────────────────────
+*.qmlc
+*.jsc
+.qmake.stash
+*.qmlproject.user
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+.qmake.core
+*.pro.user
+
+# ── IDE ────────────────────────────────────────────────
+/.idea/
+/.vscode/
+*.swp
+*~
+*.bak
+.project
+.cproject
+.settings/
+.vs/
+
+# ── OS ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ── Runtime / user data ───────────────────────────────
+/run-data/
+
+# ── Debug / profiling ─────────────────────────────────
+.dbg/
+*.dSYM/
+valgrind.out.*
+
+# ── Packages / artifacts ──────────────────────────────
+*.AppImage
+*.deb
+*.rpm
+*.dmg
+*.msi
+*.nsi
+*.nsis
+
+# ── Misc ──────────────────────────────────────────────
+.cache/
+*.log
+.mimocode/

@@ -1,0 +1,172 @@
+#include "HistoryModel.h"
+
+#include <QDir>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QStandardPaths>
+#include <QVariant>
+
+HistoryModel::HistoryModel(QObject *parent) : QAbstractListModel(parent)
+{
+    openDatabase();
+    load();
+}
+
+void HistoryModel::openDatabase()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dir);
+
+    m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("filka_history"));
+    m_db.setDatabaseName(dir + QStringLiteral("/history.db"));
+    if (!m_db.open()) {
+        qWarning("Filka: could not open history database: %s",
+                 qPrintable(m_db.lastError().text()));
+        return;
+    }
+
+    QSqlQuery q(m_db);
+    q.exec(QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS history ("
+        "  url        TEXT PRIMARY KEY,"
+        "  title      TEXT,"
+        "  last_visit INTEGER NOT NULL,"
+        "  visits     INTEGER NOT NULL DEFAULT 1)"));
+}
+
+void HistoryModel::load()
+{
+    if (!m_db.isOpen())
+        return;
+
+    QSqlQuery q(m_db);
+    q.exec(QStringLiteral(
+        "SELECT url, title, last_visit, visits FROM history ORDER BY last_visit DESC"));
+    while (q.next()) {
+        Entry e;
+        e.url = q.value(0).toString();
+        e.title = q.value(1).toString();
+        e.lastVisit = QDateTime::fromMSecsSinceEpoch(q.value(2).toLongLong());
+        e.visitCount = q.value(3).toInt();
+        m_entries.append(e);
+    }
+}
+
+int HistoryModel::rowCount(const QModelIndex &parent) const
+{
+    return parent.isValid() ? 0 : int(m_entries.size());
+}
+
+QVariant HistoryModel::data(const QModelIndex &index, int role) const
+{
+    if (index.row() < 0 || index.row() >= int(m_entries.size()))
+        return {};
+    const Entry &e = m_entries.at(index.row());
+    switch (role) {
+    case TitleRole:      return e.title.isEmpty() ? e.url : e.title;
+    case UrlRole:        return e.url;
+    case LastVisitRole:  return e.lastVisit;
+    case VisitCountRole: return e.visitCount;
+    default:             return {};
+    }
+}
+
+QHash<int, QByteArray> HistoryModel::roleNames() const
+{
+    return {
+        {TitleRole, "title"},
+        {UrlRole, "url"},
+        {LastVisitRole, "lastVisit"},
+        {VisitCountRole, "visitCount"},
+    };
+}
+
+int HistoryModel::indexOfUrl(const QString &url) const
+{
+    for (int i = 0; i < m_entries.size(); ++i)
+        if (m_entries.at(i).url == url)
+            return i;
+    return -1;
+}
+
+void HistoryModel::recordVisit(const QUrl &url, const QString &title)
+{
+    // Only track real, navigable web pages.
+    if (!url.isValid() || (url.scheme() != QLatin1String("http")
+                           && url.scheme() != QLatin1String("https")))
+        return;
+
+    const QString key = url.toString();
+    const QDateTime now = QDateTime::currentDateTime();
+
+    const int existing = indexOfUrl(key);
+    if (existing >= 0) {
+        Entry e = m_entries.takeAt(existing);
+        if (existing != 0)
+            beginMoveRows({}, existing, existing, {}, 0);
+        e.lastVisit = now;
+        e.visitCount += 1;
+        if (!title.isEmpty())
+            e.title = title;
+        m_entries.prepend(e);
+        if (existing != 0)
+            endMoveRows();
+        emit dataChanged(index(0), index(0));
+    } else {
+        beginInsertRows({}, 0, 0);
+        Entry e;
+        e.url = key;
+        e.title = title;
+        e.lastVisit = now;
+        m_entries.prepend(e);
+        endInsertRows();
+        emit countChanged();
+    }
+
+    if (m_db.isOpen()) {
+        QSqlQuery q(m_db);
+        q.prepare(QStringLiteral(
+            "INSERT INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, 1) "
+            "ON CONFLICT(url) DO UPDATE SET "
+            "  title = excluded.title, last_visit = excluded.last_visit, visits = visits + 1"));
+        q.addBindValue(key);
+        q.addBindValue(title);
+        q.addBindValue(now.toMSecsSinceEpoch());
+        q.exec();
+    }
+}
+
+void HistoryModel::removeEntry(int index)
+{
+    if (index < 0 || index >= int(m_entries.size()))
+        return;
+
+    const QString key = m_entries.at(index).url;
+    beginRemoveRows({}, index, index);
+    m_entries.removeAt(index);
+    endRemoveRows();
+    emit countChanged();
+
+    if (m_db.isOpen()) {
+        QSqlQuery q(m_db);
+        q.prepare(QStringLiteral("DELETE FROM history WHERE url = ?"));
+        q.addBindValue(key);
+        q.exec();
+    }
+}
+
+void HistoryModel::clear()
+{
+    if (m_entries.isEmpty())
+        return;
+
+    beginResetModel();
+    m_entries.clear();
+    endResetModel();
+    emit countChanged();
+
+    if (m_db.isOpen()) {
+        QSqlQuery q(m_db);
+        q.exec(QStringLiteral("DELETE FROM history"));
+    }
+}
