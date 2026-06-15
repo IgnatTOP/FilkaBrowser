@@ -49,9 +49,11 @@ jobs:
       - name: Deploy Qt
         run: windeployqt --release --compiler-runtime --qmldir app/qml ${{ github.workspace }}/install/bin/filka.exe
 
-      - name: Copy icon
+      - name: Copy launch files
         shell: pwsh
-        run: Copy-Item app/assets/filka.ico install/bin/
+        run: |
+          Copy-Item app/assets/filka.ico install/bin/
+          Copy-Item filka.bat install/bin/
 
       - name: Check DLL dependencies
         shell: pwsh
