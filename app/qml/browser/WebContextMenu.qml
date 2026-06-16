@@ -18,6 +18,15 @@ Menu {
     padding: 6
     overlap: 0
 
+    // Quick fade + lift on open so the menu feels light, not stamped down.
+    enter: Transition {
+        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.fast; easing.type: Motion.standard }
+        NumberAnimation { property: "scale"; from: 0.95; to: 1; duration: Motion.fast; easing.type: Motion.emphasized }
+    }
+    exit: Transition {
+        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Motion.instant; easing.type: Motion.exit }
+    }
+
     // Themed, rounded container.
     background: Rectangle {
         implicitWidth: 250
@@ -111,8 +120,17 @@ Menu {
         onTriggered: menu.view.triggerWebAction(WebEngineView.Paste)
     }
 
-    // ---- Tools ----
+    // ---- Page tools ----
     MSep {}
+    MItem {
+        text: "Печать / Сохранить как PDF"
+        onTriggered: {
+            if (!menu.view) return
+            var name = (menu.view.title && menu.view.title.length ? menu.view.title : "Filka")
+                       .replace(/[\/\\:*?"<>|]+/g, "_").slice(0, 80)
+            menu.view.printToPdf(AppSettings.downloadDir() + "/" + name + ".pdf")
+        }
+    }
     MItem {
         text: "Исследовать элемент"
         onTriggered: menu.inspectRequested()

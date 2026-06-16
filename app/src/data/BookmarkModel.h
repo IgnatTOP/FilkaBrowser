@@ -12,6 +12,7 @@
 #include <QSqlDatabase>
 #include <QString>
 #include <QUrl>
+#include <QVariantList>
 #include <qqmlregistration.h>
 
 class BookmarkModel : public QAbstractListModel
@@ -44,6 +45,10 @@ public:
     Q_INVOKABLE void removeUrl(const QUrl &url);
     Q_INVOKABLE void removeAt(int index);
     Q_INVOKABLE void clear();
+
+    // Address-bar autocomplete: case-insensitive substring match on url/title.
+    // Returns [{title, url}] maps, newest first.
+    Q_INVOKABLE QVariantList search(const QString &query, int limit = 4) const;
 
 signals:
     void countChanged();

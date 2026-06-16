@@ -43,10 +43,13 @@ qt_add_qml_module(filka
         src/data/PageTranslator.cpp
         src/data/AppSettings.h
         src/data/AppSettings.cpp
+        src/data/BrowsingData.h
+        src/data/BrowsingData.cpp
         src/update/UpdateChecker.h
         src/update/UpdateChecker.cpp
     QML_FILES
         qml/Main.qml
+        qml/BrowserWindow.qml
         qml/WelcomeDialog.qml
         qml/theme/Theme.qml
         qml/theme/Motion.qml
@@ -56,16 +59,28 @@ qt_add_qml_module(filka
         qml/components/GlassButton.qml
         qml/components/IconButton.qml
         qml/components/Icon.qml
+        qml/components/Favicon.qml
         qml/components/AddressBar.qml
         qml/components/UpdateBanner.qml
         qml/components/SidePanel.qml
+        qml/components/Pill.qml
+        qml/components/Chip.qml
+        qml/components/ToggleSwitch.qml
+        qml/components/SectionLabel.qml
+        qml/components/AccentSwatch.qml
         qml/browser/BrowserView.qml
+        qml/browser/ShellState.qml
+        qml/browser/NavigationBar.qml
+        qml/browser/PanelHost.qml
+        qml/browser/BrowserShortcuts.qml
         qml/browser/TabPanel.qml
         qml/browser/TabItem.qml
         qml/browser/TabStrip.qml
         qml/browser/WebPane.qml
         qml/browser/StartPage.qml
+        qml/browser/ListCard.qml
         qml/browser/WebContextMenu.qml
+        qml/browser/TabContextMenu.qml
         qml/browser/FindBar.qml
         qml/browser/PermissionBar.qml
         qml/browser/BookmarksBar.qml

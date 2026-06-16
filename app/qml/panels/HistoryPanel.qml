@@ -7,7 +7,7 @@ import Filka
 // in the toolbar clears everything.
 SidePanel {
     id: root
-    title: "История"
+    title: qsTr("История")
 
     signal navigate(string url)
 
@@ -15,10 +15,10 @@ SidePanel {
     function relTime(dt) {
         if (!dt || isNaN(dt.getTime())) return ""
         var diff = (Date.now() - dt.getTime()) / 1000
-        if (diff < 60)    return "только что"
-        if (diff < 3600)  return Math.floor(diff / 60) + " мин назад"
-        if (diff < 86400) return Math.floor(diff / 3600) + " ч назад"
-        if (diff < 172800) return "вчера"
+        if (diff < 60)    return qsTr("только что")
+        if (diff < 3600)  return qsTr("%1 мин назад").arg(Math.floor(diff / 60))
+        if (diff < 86400) return qsTr("%1 ч назад").arg(Math.floor(diff / 3600))
+        if (diff < 172800) return qsTr("вчера")
         return Qt.formatDateTime(dt, "d MMM yyyy")
     }
 
@@ -33,7 +33,7 @@ SidePanel {
             height: 30
             Text {
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                text: HistoryModel.count + " " + Theme.plural(HistoryModel.count, "запись", "записи", "записей")
+                text: HistoryModel.count + " " + Theme.plural(HistoryModel.count, qsTr("запись"), qsTr("записи"), qsTr("записей"))
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeXs
@@ -44,7 +44,7 @@ SidePanel {
                 enabled: HistoryModel.count > 0
                 opacity: enabled ? 1 : 0.4
                 iconColor: Theme.danger
-                Accessible.name: "Очистить историю"
+                Accessible.name: qsTr("Очистить историю")
                 onClicked: HistoryModel.clear()
             }
         }
@@ -55,7 +55,7 @@ SidePanel {
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             topPadding: Theme.s6
-            text: "Здесь пока пусто.\nОткрытые страницы появятся в истории."
+            text: qsTr("Здесь пока пусто.\nОткрытые страницы появятся в истории.")
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSm
@@ -72,12 +72,30 @@ SidePanel {
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
+            // Entries slide+fade as they're added/removed; the rest reflow.
+            add: Transition {
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.base; easing.type: Motion.standard }
+                NumberAnimation { property: "x"; from: 16; to: 0; duration: Motion.base; easing.type: Motion.emphasized }
+            }
+            remove: Transition {
+                NumberAnimation { property: "opacity"; to: 0; duration: Motion.fast; easing.type: Motion.exit }
+                NumberAnimation { property: "x"; to: 24; duration: Motion.fast; easing.type: Motion.exit }
+            }
+            displaced: Transition {
+                NumberAnimation { properties: "x,y"; duration: Motion.base; easing.type: Motion.standard }
+            }
+
             delegate: Rectangle {
                 id: row
                 width: ListView.view.width
-                height: 50
+                height: 56
                 radius: Theme.radiusMd
                 color: hover.hovered ? Theme.glassMed : "transparent"
+                border.width: activeFocus ? Theme.focusWidth : 0
+                border.color: Theme.focusRing
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: row.title
                 Behavior on color { ColorAnimation { duration: Motion.fast } }
 
                 required property int index
@@ -86,7 +104,10 @@ SidePanel {
                 required property var lastVisit
 
                 HoverHandler { id: hover }
-                TapHandler { onTapped: { root.navigate(row.url); root.open = false } }
+                TapHandler { onTapped: root.navigate(row.url) }
+                Keys.onReturnPressed: root.navigate(row.url)
+                Keys.onEnterPressed: root.navigate(row.url)
+                Keys.onSpacePressed: root.navigate(row.url)
 
                 Icon {
                     id: glyph
@@ -119,10 +140,12 @@ SidePanel {
                 IconButton {
                     id: del
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 4 }
-                    visible: hover.hovered
+                    opacity: (hover.hovered || row.activeFocus) ? 1 : 0
+                    visible: opacity > 0.01
                     iconName: "x"; size: 26; iconSize: 13
-                    Accessible.name: "Удалить запись"
+                    Accessible.name: qsTr("Удалить запись")
                     onClicked: HistoryModel.removeEntry(row.index)
+                    Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
                 }
             }
         }

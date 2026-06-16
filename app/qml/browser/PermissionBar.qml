@@ -49,49 +49,51 @@ Item {
         border.width: 1
         border.color: Theme.accent
 
-        Row {
+        Icon {
+            id: promptIcon
             anchors { left: parent.left; leftMargin: Theme.s3; verticalCenter: parent.verticalCenter }
-            spacing: Theme.s2
-            Icon {
-                anchors.verticalCenter: parent.verticalCenter
-                name: "shield"; size: 16; color: Theme.accent
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.host(root.permission) + " запрашивает " + root.labelFor(root.permission)
-                color: Theme.textPrimary
-                font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
-                elide: Text.ElideRight
-            }
+            name: "shield"; size: 16; color: Theme.accent
+        }
+        Text {
+            anchors { left: promptIcon.right; leftMargin: Theme.s2; right: actions.left; rightMargin: Theme.s3; verticalCenter: parent.verticalCenter }
+            text: qsTr("%1 запрашивает %2").arg(root.host(root.permission)).arg(root.labelFor(root.permission))
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
+            elide: Text.ElideRight
         }
 
         Row {
+            id: actions
             anchors { right: parent.right; rightMargin: Theme.s2; verticalCenter: parent.verticalCenter }
             spacing: Theme.s2
 
-            Rectangle {
-                width: 90; height: 30; radius: Theme.radiusSm
-                color: allowHover.hovered ? Theme.accent : Theme.accentSoft
-                Behavior on color { ColorAnimation { duration: Motion.fast } }
+            Pill {
+                id: allowPill
+                anchors.verticalCenter: parent.verticalCenter
+                radius: Theme.radiusSm
+                implicitHeight: 30
+                hPadding: Theme.s4
+                strokeWidth: 0
+                fillColor: hovered ? Theme.accent : Theme.accentSoft
+                onClicked: root.grant()
                 Text {
-                    anchors.centerIn: parent; text: "Разрешить"
-                    color: allowHover.hovered ? "white" : Theme.accent
+                    text: qsTr("Разрешить")
+                    color: allowPill.hovered ? "white" : Theme.accent
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm; font.weight: Font.Medium
                 }
-                HoverHandler { id: allowHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.grant() }
             }
-            Rectangle {
-                width: 96; height: 30; radius: Theme.radiusSm
-                color: blockHover.hovered ? Theme.glassHigh : Theme.glassLow
-                border.width: 1; border.color: Theme.glassStroke
+            Pill {
+                anchors.verticalCenter: parent.verticalCenter
+                radius: Theme.radiusSm
+                implicitHeight: 30
+                hPadding: Theme.s4
+                fillColor: hovered ? Theme.glassHigh : Theme.glassLow
+                onClicked: root.deny()
                 Text {
-                    anchors.centerIn: parent; text: "Запретить"
+                    text: qsTr("Запретить")
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
                 }
-                HoverHandler { id: blockHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.deny() }
             }
         }
     }

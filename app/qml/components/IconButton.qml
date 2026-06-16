@@ -10,12 +10,17 @@ Button {
     property string iconName: ""
     property color iconColor: Theme.textSecondary
     property color hoverColor: Theme.glassMed
-    property real size: 34
+    property real size: Theme.controlMd
     property real iconSize: Math.round(size * 0.52)
     property bool active: false
 
     implicitWidth: size
     implicitHeight: size
+    focusPolicy: Qt.TabFocus
+    Accessible.role: Accessible.Button
+
+    // Enable/disable dimming and show/hide fades glide instead of snapping.
+    Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
 
     contentItem: Icon {
         name: control.iconName
@@ -26,11 +31,14 @@ Button {
     }
 
     background: Rectangle {
-        radius: Theme.radiusSm
+        radius: Math.min(Theme.radiusMd, control.size / 2)
         color: control.pressed ? Theme.glassHigh
              : (control.hovered || control.active) ? control.hoverColor : "transparent"
-        scale: control.pressed ? 0.9 : (control.hovered ? 1.08 : 1.0)
+        border.width: control.activeFocus ? Theme.focusWidth : (control.active ? 1 : 0)
+        border.color: control.activeFocus ? Theme.focusRing : Theme.glassStroke
+        scale: control.pressed ? 0.94 : 1.0
         Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
         Behavior on color { ColorAnimation { duration: Motion.fast } }
+        Behavior on border.color { ColorAnimation { duration: Motion.fast } }
     }
 }

@@ -66,6 +66,9 @@ private:
     QList<Workspace> m_items;
     int m_activeIndex = 0;
 
+    // True once the primary window has claimed the persisted session (see .cpp).
+    static bool s_sessionOwned;
+
     QSettings m_store;
     QTimer m_saveTimer;
 

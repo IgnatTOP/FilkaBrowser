@@ -1,6 +1,5 @@
 #include "PageTranslator.h"
 
-#include <QFile>
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QJsonArray>
@@ -14,46 +13,6 @@ const char *kEndpoint = "https://openai.bothub.chat/v1/chat/completions";
 const char *kModel    = "gpt-oss-120b:free";
 const char *kDefaultApiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNjExZmNmLWY5OWMtNGVmZS04MWMyLTAyNjYyNDVjMGM2OSIsImlzRGV2ZWxvcGVyIjp0cnVlLCJpYXQiOjE3ODE1NTQxNDksImV4cCI6MjA5NzEzMDE0OSwianRpIjoiTUZPQTBDdl9PT2w0ZG9CcSJ9.Cd7ooATVO_faFUHheI2NRP6hLzvGyqTuLfH75e4pCFc";
 constexpr int kMaxChars = 8000;
-const char *kDebugEnvPath = "/home/ignat/FilkaBrowser/.dbg/page-translation-bug.env";
-const char *kDebugFallbackUrl = "http://127.0.0.1:7777/event";
-const char *kDebugSessionId = "page-translation-bug";
-
-QString debugServerUrl()
-{
-    QFile envFile(QString::fromLatin1(kDebugEnvPath));
-    if (envFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        while (!envFile.atEnd()) {
-            const QByteArray line = envFile.readLine().trimmed();
-            if (line.startsWith("DEBUG_SERVER_URL="))
-                return QString::fromUtf8(line.mid(sizeof("DEBUG_SERVER_URL=") - 1));
-        }
-    }
-    return QString::fromLatin1(kDebugFallbackUrl);
-}
-
-void reportDebugEvent(const QString &hypothesisId,
-                      const QString &location,
-                      const QString &msg,
-                      const QJsonObject &data = {})
-{
-    static QNetworkAccessManager debugNam;
-
-    QNetworkRequest req{QUrl(debugServerUrl())};
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
-
-    QJsonObject body{
-        {QStringLiteral("sessionId"), QString::fromLatin1(kDebugSessionId)},
-        {QStringLiteral("runId"), QStringLiteral("pre-fix")},
-        {QStringLiteral("hypothesisId"), hypothesisId},
-        {QStringLiteral("location"), location},
-        {QStringLiteral("msg"), QStringLiteral("[DEBUG] ") + msg},
-        {QStringLiteral("data"), data},
-    };
-
-    if (QNetworkReply *reply = debugNam.post(req, QJsonDocument(body).toJson(QJsonDocument::Compact))) {
-        QObject::connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
-    }
-}
 }
 
 PageTranslator::PageTranslator(QObject *parent) : QObject(parent)
@@ -117,17 +76,6 @@ void PageTranslator::setCachedText(const QString &text, const QString &title, co
     emit cachedTextChanged();
     emit cachedTitleChanged();
     emit cachedUrlChanged();
-    // #region debug-point A:cached-text
-    reportDebugEvent(QStringLiteral("A"),
-                     QStringLiteral("PageTranslator::setCachedText"),
-                     QStringLiteral("Cached page text updated"),
-                     QJsonObject{
-                         {QStringLiteral("textLength"), text.length()},
-                         {QStringLiteral("titleLength"), title.length()},
-                         {QStringLiteral("urlLength"), url.length()},
-                         {QStringLiteral("previewLength"), qMin(text.length(), 240)},
-                     });
-    // #endregion
 
     if (!text.isEmpty())
         setSourcePreview(text.left(240) + (text.length() > 240 ? QStringLiteral("…") : QString()));
@@ -181,19 +129,6 @@ void PageTranslator::translateText(const QString &pageText, const QString &pageT
     QString content = trimmed;
     if (content.size() > kMaxChars)
         content = content.left(kMaxChars) + QStringLiteral("\n\n[…текст обрезан…]");
-
-    // #region debug-point B:translate-start
-    reportDebugEvent(QStringLiteral("B"),
-                     QStringLiteral("PageTranslator::translateText"),
-                     QStringLiteral("Translation requested"),
-                     QJsonObject{
-                         {QStringLiteral("trimmedLength"), trimmed.length()},
-                         {QStringLiteral("contentLength"), content.length()},
-                         {QStringLiteral("pageTitleLength"), pageTitle.length()},
-                         {QStringLiteral("hadCachedText"), !m_cachedText.isEmpty()},
-                         {QStringLiteral("wasTranslating"), m_translating},
-                     });
-    // #endregion
 
     setTranslating(true);
     startStreamRequest(content, pageTitle);
@@ -318,23 +253,11 @@ void PageTranslator::processSSEBuffer()
                                   .value(QStringLiteral("delta")).toObject()
                                   .value(QStringLiteral("content")).toString();
         if (!chunk.isEmpty()) {
-            const bool firstChunk = m_translatedText.isEmpty();
             m_translatedText += chunk;
             if (m_batchMode)
                 m_batchResult += chunk;
             emit translatedTextChanged();
             emit chunkReceived(chunk);
-            if (firstChunk) {
-                // #region debug-point C:first-chunk
-                reportDebugEvent(QStringLiteral("C"),
-                                 QStringLiteral("PageTranslator::processSSEBuffer"),
-                                 QStringLiteral("First translation chunk received"),
-                                 QJsonObject{
-                                     {QStringLiteral("chunkLength"), chunk.length()},
-                                     {QStringLiteral("translatedLength"), m_translatedText.length()},
-                                 });
-                // #endregion
-            }
         }
     }
 }
@@ -367,18 +290,6 @@ void PageTranslator::onReplyFinished()
         setError(QStringLiteral("Пустой ответ от сервиса перевода."));
     }
 
-    // #region debug-point D:reply-finished
-    reportDebugEvent(QStringLiteral("D"),
-                     QStringLiteral("PageTranslator::onReplyFinished"),
-                     QStringLiteral("Translation reply finished"),
-                     QJsonObject{
-                         {QStringLiteral("status"), status},
-                         {QStringLiteral("networkError"), static_cast<int>(err)},
-                         {QStringLiteral("translatedLength"), m_translatedText.length()},
-                         {QStringLiteral("errorLength"), m_error.length()},
-                     });
-    // #endregion
-
     m_reply->deleteLater();
     m_reply = nullptr;
     if (m_batchMode) {
@@ -390,28 +301,8 @@ void PageTranslator::onReplyFinished()
 
 void PageTranslator::cancel()
 {
-    if (m_reply) {
-        // #region debug-point E:cancel
-        reportDebugEvent(QStringLiteral("E"),
-                         QStringLiteral("PageTranslator::cancel"),
-                         QStringLiteral("Translation cancel requested"),
-                         QJsonObject{
-                             {QStringLiteral("translatedLength"), m_translatedText.length()},
-                             {QStringLiteral("hasReply"), true},
-                         });
-        // #endregion
+    if (m_reply)
         m_reply->abort();          // triggers finished() with OperationCanceledError
-    } else {
-        // #region debug-point E:cancel
-        reportDebugEvent(QStringLiteral("E"),
-                         QStringLiteral("PageTranslator::cancel"),
-                         QStringLiteral("Cancel requested without active reply"),
-                         QJsonObject{
-                             {QStringLiteral("translatedLength"), m_translatedText.length()},
-                             {QStringLiteral("hasReply"), false},
-                         });
-        // #endregion
-    }
     setTranslating(false);
 }
 

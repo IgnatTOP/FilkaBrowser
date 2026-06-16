@@ -2,12 +2,22 @@ import QtQuick
 import QtQuick.Controls.Basic
 import Filka
 
-// SettingsPanel — the small set of preferences a browser must remember:
-// appearance, default search engine and the page new tabs open. Everything is
-// bound to the persistent AppSettings singleton, so changes save immediately.
+// SettingsPanel — appearance, default search engine and the start page. Every
+// control binds to the persistent AppSettings singleton, so changes save
+// immediately. Built from the shared primitives (SectionLabel, Chip,
+// ToggleSwitch) so the look stays consistent and new settings drop in cleanly.
 SidePanel {
     id: root
-    title: "Настройки"
+    title: qsTr("Настройки")
+
+    // Full-width glass container for a single setting block.
+    component Card: Rectangle {
+        radius: Theme.radiusMd
+        color: Theme.glassLow
+        border.width: 1
+        border.color: Theme.glassStroke
+        Behavior on border.color { ColorAnimation { duration: Motion.fast } }
+    }
 
     Flickable {
         anchors.fill: parent
@@ -25,42 +35,18 @@ SidePanel {
             Column {
                 width: parent.width
                 spacing: Theme.s2
-                Text {
-                    text: "Внешний вид"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase
-                }
+                SectionLabel { text: qsTr("Внешний вид") }
                 Row {
                     spacing: Theme.s2
                     Repeater {
-                        model: [ { label: "Светлая", dark: false }, { label: "Тёмная", dark: true } ]
-                        delegate: Rectangle {
-                            id: chip
+                        model: [ { label: qsTr("Светлая"), dark: false }, { label: qsTr("Тёмная"), dark: true } ]
+                        delegate: Chip {
                             required property var modelData
-                            readonly property bool selected: AppSettings.darkMode === modelData.dark
-                            width: 120; height: 38
-                            radius: Theme.radiusMd
-                            color: selected ? Theme.accentSoft : Theme.glassLow
-                            border.width: 1
-                            border.color: selected ? Theme.accent : Theme.glassStroke
-                            Behavior on color { ColorAnimation { duration: Motion.fast } }
-                            Row {
-                                anchors.centerIn: parent
-                                spacing: Theme.s2
-                                Icon {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    name: chip.modelData.dark ? "moon" : "sun"; size: 15
-                                    color: chip.selected ? Theme.accent : Theme.textSecondary
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: chip.modelData.label
-                                    color: Theme.textPrimary
-                                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
-                                }
-                            }
-                            TapHandler { onTapped: AppSettings.darkMode = chip.modelData.dark }
+                            width: 120; height: 38; radius: Theme.radiusMd
+                            iconName: modelData.dark ? "moon" : "sun"
+                            label: modelData.label
+                            selected: AppSettings.darkMode === modelData.dark
+                            onClicked: AppSettings.darkMode = modelData.dark
                         }
                     }
                 }
@@ -70,80 +56,42 @@ SidePanel {
             Column {
                 width: parent.width
                 spacing: Theme.s2
-                Text {
-                    text: "Акцентный цвет"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase
-                }
+                SectionLabel { text: qsTr("Акцентный цвет") }
                 Row {
                     spacing: Theme.s3
                     Repeater {
-                        model: ["#2E7CF6", "#8B5CF6", "#22D3EE", "#34D399", "#FBBF24", "#F87171", "#EC4899"]
-                        delegate: Rectangle {
-                            id: swatch
+                        model: ["#FF6A4D", "#FFA63D", "#FF5C7A", "#9B5CF6", "#22D3EE", "#34D399", "#2E7CF6"]
+                        delegate: AccentSwatch {
                             required property string modelData
-                            readonly property bool selected: AppSettings.accentColor.toLowerCase() === modelData.toLowerCase()
-                            width: 34; height: 34; radius: 17
-                            color: modelData
-                            scale: swHover.hovered ? 1.12 : 1.0
-                            Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
-                            Rectangle {   // selection ring
-                                anchors.centerIn: parent
-                                width: parent.width + 8; height: width; radius: width / 2
-                                color: "transparent"
-                                border.width: 2
-                                border.color: swatch.modelData
-                                opacity: swatch.selected ? 0.9 : 0
-                                Behavior on opacity { NumberAnimation { duration: Motion.fast } }
-                            }
-                            Icon {
-                                anchors.centerIn: parent
-                                visible: swatch.selected
-                                name: "shield-check"; size: 16; color: "white"
-                            }
-                            HoverHandler { id: swHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: AppSettings.accentColor = swatch.modelData }
+                            swatchColor: modelData
+                            selected: AppSettings.accentColor.toLowerCase() === modelData.toLowerCase()
+                            onClicked: AppSettings.accentColor = modelData
                         }
                     }
                 }
             }
 
             // ---- Start-page backdrop toggle ----
-            Rectangle {
+            Card {
                 width: parent.width; height: 52
-                radius: Theme.radiusMd
-                color: Theme.glassLow
-                border.width: 1; border.color: Theme.glassStroke
                 Column {
                     anchors { left: parent.left; leftMargin: Theme.s3; verticalCenter: parent.verticalCenter }
                     spacing: 1
                     Text {
-                        text: "Анимация фона"
+                        text: qsTr("Анимация фона")
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm; font.weight: Font.Medium
                     }
                     Text {
-                        text: "Переливающееся сияние на стартовой странице"
+                        text: qsTr("Переливающееся сияние на стартовой странице")
                         color: Theme.textMuted
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                     }
                 }
-                // Toggle switch.
-                Rectangle {
-                    id: track
+                ToggleSwitch {
                     anchors { right: parent.right; rightMargin: Theme.s3; verticalCenter: parent.verticalCenter }
-                    width: 46; height: 26; radius: 13
-                    readonly property bool on: AppSettings.startPageAurora
-                    color: on ? Theme.accent : Theme.glassMed
-                    Behavior on color { ColorAnimation { duration: Motion.fast } }
-                    Rectangle {
-                        width: 20; height: 20; radius: 10; color: "white"
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: track.on ? parent.width - width - 3 : 3
-                        Behavior on x { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
-                    }
-                    TapHandler { onTapped: AppSettings.startPageAurora = !AppSettings.startPageAurora }
+                    checked: AppSettings.startPageAurora
+                    onToggled: AppSettings.startPageAurora = !AppSettings.startPageAurora
                 }
             }
 
@@ -151,27 +99,20 @@ SidePanel {
             Column {
                 width: parent.width
                 spacing: Theme.s2
-                Text {
-                    text: "Поисковая система"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase
-                }
+                SectionLabel { text: qsTr("Поисковая система") }
                 Column {
                     width: parent.width
                     spacing: 4
                     Repeater {
                         model: AppSettings.searchEngines()
-                        delegate: Rectangle {
+                        delegate: Card {
                             required property string modelData
                             readonly property bool selected: AppSettings.searchEngine === modelData
                             width: parent.width; height: 42
-                            radius: Theme.radiusMd
                             color: hover.hovered ? Theme.glassMed : Theme.glassLow
-                            border.width: 1
                             border.color: selected ? Theme.accent : Theme.glassStroke
                             Behavior on color { ColorAnimation { duration: Motion.fast } }
-                            HoverHandler { id: hover }
+                            HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
                             TapHandler { onTapped: AppSettings.searchEngine = modelData }
                             Text {
                                 anchors { left: parent.left; leftMargin: Theme.s3; verticalCenter: parent.verticalCenter }
@@ -193,17 +134,10 @@ SidePanel {
             Column {
                 width: parent.width
                 spacing: Theme.s2
-                Text {
-                    text: "Стартовая страница"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase
-                }
-                Rectangle {
+                SectionLabel { text: qsTr("Стартовая страница") }
+                Card {
                     width: parent.width; height: 42
-                    radius: Theme.radiusMd
                     color: home.activeFocus ? Theme.glassHigh : Theme.glassLow
-                    border.width: 1
                     border.color: home.activeFocus ? Theme.accent : Theme.glassStroke
                     TextField {
                         id: home
@@ -215,13 +149,13 @@ SidePanel {
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
                         selectByMouse: true
                         background: null
-                        placeholderText: "https://…"
+                    placeholderText: "https://..."
                         placeholderTextColor: Theme.textMuted
                         onEditingFinished: AppSettings.homePage = text.trim()
                     }
                 }
                 Text {
-                    text: "Открывается по кнопке «Домой». Новые вкладки открывают стартовую страницу Filka."
+                    text: qsTr("Открывается по кнопке «Домой». Новые вкладки открывают стартовую страницу Filka.")
                     color: Theme.textMuted
                     wrapMode: Text.WordWrap
                     width: parent.width
@@ -233,44 +167,59 @@ SidePanel {
             Column {
                 width: parent.width
                 spacing: Theme.s2
-                Text {
-                    text: "Конфиденциальность"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase
-                }
-                Rectangle {
+                SectionLabel { text: qsTr("Конфиденциальность") }
+
+                // A destructive action row: trash icon, label, optional trailing
+                // hint, runs `act()` on tap. Reused for history/cache/cookies.
+                component ClearRow: Card {
+                    id: clearRow
+                    property string label: ""
+                    property string hint: ""
+                    property var act: (function() {})
                     width: parent.width; height: 44
-                    radius: Theme.radiusMd
-                    color: clearHover.hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.16)
-                                              : Theme.glassLow
-                    border.width: 1
-                    border.color: clearHover.hovered ? Theme.danger : Theme.glassStroke
+                    color: rowHover.hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.16)
+                                            : Theme.glassLow
+                    border.color: rowHover.hovered ? Theme.danger : Theme.glassStroke
                     Behavior on color { ColorAnimation { duration: Motion.fast } }
-                    Behavior on border.color { ColorAnimation { duration: Motion.fast } }
                     Row {
                         anchors { left: parent.left; leftMargin: Theme.s3; verticalCenter: parent.verticalCenter }
                         spacing: Theme.s2
                         Icon {
                             anchors.verticalCenter: parent.verticalCenter
                             name: "trash-2"; size: 16
-                            color: clearHover.hovered ? Theme.danger : Theme.textSecondary
+                            color: rowHover.hovered ? Theme.danger : Theme.textSecondary
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Очистить историю посещений"
-                            color: clearHover.hovered ? Theme.danger : Theme.textPrimary
+                            text: clearRow.label
+                            color: rowHover.hovered ? Theme.danger : Theme.textPrimary
                             font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
                         }
                     }
                     Text {
                         anchors { right: parent.right; rightMargin: Theme.s3; verticalCenter: parent.verticalCenter }
-                        text: HistoryModel.count + " " + Theme.plural(HistoryModel.count, "запись", "записи", "записей")
+                        text: clearRow.hint
+                        visible: clearRow.hint.length > 0
                         color: Theme.textMuted
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                     }
-                    HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: HistoryModel.clear() }
+                    HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: clearRow.act() }
+                }
+
+                ClearRow {
+                    label: qsTr("Очистить историю посещений")
+                    hint: HistoryModel.count + " " + Theme.plural(HistoryModel.count, qsTr("запись"), qsTr("записи"), qsTr("записей"))
+                    act: (function() { HistoryModel.clear() })
+                }
+                ClearRow {
+                    label: qsTr("Очистить кэш")
+                    act: (function() { filkaPrivacy.clearCache() })
+                }
+                ClearRow {
+                    label: qsTr("Очистить cookie и данные сайтов")
+                    hint: qsTr("выход со всех сайтов")
+                    act: (function() { filkaPrivacy.clearCookies() })
                 }
             }
 
@@ -278,20 +227,11 @@ SidePanel {
             Column {
                 width: parent.width
                 spacing: Theme.s2
-                Text {
-                    text: "Обновления"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase
-                }
-                Rectangle {
+                SectionLabel { text: qsTr("Обновления") }
+                Card {
                     width: parent.width
                     height: updCol.height + Theme.s3 * 2
-                    radius: Theme.radiusMd
-                    color: Theme.glassLow
-                    border.width: 1
                     border.color: UpdateChecker.updateAvailable ? Theme.accent : Theme.glassStroke
-                    Behavior on border.color { ColorAnimation { duration: Motion.fast } }
 
                     Column {
                         id: updCol
@@ -321,35 +261,29 @@ SidePanel {
                                 Text {
                                     width: parent.width
                                     text: UpdateChecker.checking
-                                          ? "Проверяем наличие обновлений…"
+                                          ? qsTr("Проверяем наличие обновлений...")
                                           : UpdateChecker.updateAvailable
-                                            ? "Доступна версия " + UpdateChecker.latestVersion
+                                            ? qsTr("Доступна версия %1").arg(UpdateChecker.latestVersion)
                                             : UpdateChecker.upToDate
-                                              ? "У вас актуальная версия"
-                                              : "Нажмите, чтобы проверить обновления"
+                                              ? qsTr("У вас актуальная версия")
+                                              : qsTr("Нажмите, чтобы проверить обновления")
                                     color: UpdateChecker.updateAvailable ? Theme.accent : Theme.textMuted
                                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                                     elide: Text.ElideRight
                                 }
                             }
-                            Rectangle {
+                            Pill {
                                 id: checkBtn
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: checkLbl.implicitWidth + Theme.s4; height: 32
-                                radius: Theme.radiusPill
-                                color: checkHover.hovered ? Theme.glassHigh : Theme.glassMed
-                                border.width: 1; border.color: Theme.glassStroke
-                                Behavior on color { ColorAnimation { duration: Motion.fast } }
+                                implicitHeight: 32
+                                fillColor: hovered ? Theme.glassHigh : Theme.glassMed
+                                onClicked: if (!UpdateChecker.checking) UpdateChecker.checkForUpdates()
                                 Text {
-                                    id: checkLbl
-                                    anchors.centerIn: parent
-                                    text: UpdateChecker.checking ? "Проверка…" : "Проверить"
+                                    text: UpdateChecker.checking ? qsTr("Проверка...") : qsTr("Проверить")
                                     color: Theme.textPrimary
                                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                                     font.weight: Font.Medium
                                 }
-                                HoverHandler { id: checkHover; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: if (!UpdateChecker.checking) UpdateChecker.checkForUpdates() }
                             }
                         }
 
@@ -357,18 +291,14 @@ SidePanel {
                             visible: UpdateChecker.updateAvailable
                             width: parent.width; height: 40
                             radius: Theme.radiusMd
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop { position: 0.0; color: Theme.electricBlue }
-                                GradientStop { position: 1.0; color: Theme.auroraPurple }
-                            }
+                            color: Theme.accent
                             Row {
                                 anchors.centerIn: parent
                                 spacing: Theme.s2
                                 Icon { anchors.verticalCenter: parent.verticalCenter; name: "download"; size: 14; color: "white" }
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: "Скачать обновление"
+                                    text: qsTr("Скачать обновление")
                                     color: "white"
                                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm; font.weight: Font.DemiBold
                                 }

@@ -5,6 +5,7 @@
 // workspaces, data) are registered here as the project grows.
 
 #include <QGuiApplication>
+#include <QDir>
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -13,6 +14,34 @@
 #include <QtWebEngineQuick>
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
+
+#include "data/BrowsingData.h"
+
+namespace {
+QString writableOrFallback(QStandardPaths::StandardLocation location,
+                           const QString &fallbackName)
+{
+    QString path = QStandardPaths::writableLocation(location);
+    if (path.isEmpty())
+        path = QDir::home().filePath(fallbackName);
+    QDir().mkpath(path);
+    return path;
+}
+
+QString safeDownloadDirectory()
+{
+    QString path = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (path.isEmpty())
+        path = QDir::home().filePath(QStringLiteral("Downloads"));
+    if (!QDir().mkpath(path)) {
+        path = writableOrFallback(QStandardPaths::AppDataLocation,
+                                  QStringLiteral(".local/share/Filka"));
+        path = QDir(path).filePath(QStringLiteral("Downloads"));
+        QDir().mkpath(path);
+    }
+    return path;
+}
+}
 
 int main(int argc, char *argv[])
 {
@@ -56,7 +85,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setOrganizationName("Filka");
     app.setApplicationName("Filka Browser");
-    app.setApplicationVersion(QStringLiteral("0.1.0"));
+    app.setApplicationVersion(QStringLiteral("3.1.1"));
 
     // Filka brand mark — used for the window/taskbar icon (the same asset is
     // bundled into the QML module for in-app branding).
@@ -70,12 +99,21 @@ int main(int argc, char *argv[])
     // cache the moment the app quits. A *named* profile owns an on-disk store,
     // so sessions (e.g. staying signed into Yandex/Google) survive restarts.
     // Exposed to QML as `filkaProfile` and shared by every tab's WebEngineView.
+    const QString dataPath = writableOrFallback(QStandardPaths::AppDataLocation,
+                                                QStringLiteral(".local/share/Filka"));
+    const QString cachePath = writableOrFallback(QStandardPaths::CacheLocation,
+                                                 QStringLiteral(".cache/Filka"));
+    const QString downloadPath = safeDownloadDirectory();
+
     auto *profile = new QWebEngineProfile(QStringLiteral("filka"), &app);
+    profile->setPersistentStoragePath(QDir(dataPath).filePath(QStringLiteral("webengine")));
+    profile->setCachePath(QDir(cachePath).filePath(QStringLiteral("webengine")));
     profile->setPersistentCookiesPolicy(QWebEngineProfile::ForcePersistentCookies);
+    profile->setPersistentPermissionsPolicy(QWebEngineProfile::PersistentPermissionsPolicy::StoreOnDisk);
     profile->setHttpCacheType(QWebEngineProfile::DiskHttpCache);
     profile->setHttpCacheMaximumSize(256 * 1024 * 1024);
-    profile->setDownloadPath(
-        QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    profile->setDownloadPath(downloadPath);
+    // Download handling is done in QML (WebEngineProfile.onDownloadRequested).
 
     auto *s = profile->settings();
 
@@ -105,7 +143,8 @@ int main(int argc, char *argv[])
     s->setAttribute(QWebEngineSettings::WebGLEnabled, true);
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty(QStringLiteral("filkaProfile"), profile);
+    auto *privacy = new BrowsingData(profile, &app);
+    engine.rootContext()->setContextProperty(QStringLiteral("filkaPrivacy"), privacy);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
         []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);

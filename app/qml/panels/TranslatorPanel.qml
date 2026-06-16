@@ -15,7 +15,11 @@ Item {
     property bool extracting: false
     signal requestClose()
 
-    readonly property var targetLangs: ["Русский", "English", "Deutsch", "Français",
+    // Give the floating bar a real height so it sits as a proper pill above the
+    // bottom edge instead of collapsing to a zero-height anchor line.
+    implicitHeight: barRow.height + Theme.s5
+
+    readonly property var targetLangs: [qsTr("Русский"), "English", "Deutsch", "Français",
                                         "Español", "中文", "日本語", "Português"]
     readonly property bool isLoading: activeView ? activeView.loading : false
     readonly property string currentUrl: activeView ? activeView.url.toString() : ""
@@ -157,7 +161,7 @@ Item {
         anchors.fill: barRow
         anchors.margins: -Theme.s3
         radius: Theme.radiusPill
-        color: Theme.bgRaised
+        color: Theme.surface
         border.width: 1
         border.color: Theme.glassStroke
     }
@@ -174,23 +178,19 @@ Item {
         }
 
         // Language selector
-        Rectangle {
-            width: langRow.width + Theme.s3; height: 28
-            radius: Theme.radiusPill
-            color: langHover.hovered ? Theme.glassMed : Theme.glassLow
-            border.width: 1; border.color: Theme.glassStroke
+        Pill {
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: langPopup.visible = !langPopup.visible
             Row {
-                id: langRow; anchors.centerIn: parent; spacing: Theme.s1
+                spacing: Theme.s1
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: PageTranslator.targetLanguage
-                    color: Theme.textPrimary
+                text: PageTranslator.targetLanguage
+                color: Theme.textPrimary
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs; font.weight: Font.Medium
                 }
                 Icon { anchors.verticalCenter: parent.verticalCenter; name: "chevron-down"; size: 10; color: Theme.textMuted }
             }
-            HoverHandler { id: langHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: langPopup.visible = !langPopup.visible }
         }
 
         // Progress (while translating)
@@ -199,7 +199,7 @@ Item {
             spacing: Theme.s2
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.extracting ? "Извлекаем…" : (root.totalChunks > 1 ? "Перевод " + root.doneChunks + "/" + root.totalChunks : "Перевод…")
+                text: root.extracting ? qsTr("Извлекаем...") : (root.totalChunks > 1 ? qsTr("Перевод %1/%2").arg(root.doneChunks).arg(root.totalChunks) : qsTr("Перевод..."))
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
             }
@@ -226,27 +226,22 @@ Item {
         }
 
         // Translate button
-        Rectangle {
-            width: trRow.width + Theme.s3; height: 28
-            radius: Theme.radiusPill
+        Pill {
+            anchors.verticalCenter: parent.verticalCenter
             visible: !PageTranslator.translating && !root.extracting && !root.pageTranslated
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: Theme.electricBlue }
-                GradientStop { position: 1.0; color: Theme.auroraPurple }
-            }
+            strokeWidth: 0
+            fillColor: Theme.accent
+            onClicked: root.startInPageTranslation()
             Row {
-                id: trRow; anchors.centerIn: parent; spacing: Theme.s1
+                spacing: Theme.s1
                 Icon { anchors.verticalCenter: parent.verticalCenter; name: "languages"; size: 12; color: "white" }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Перевести"
+                    text: qsTr("Перевести")
                     color: "white"
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs; font.weight: Font.DemiBold
                 }
             }
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: root.startInPageTranslation() }
         }
 
         // Done badge
@@ -256,43 +251,40 @@ Item {
             Icon { anchors.verticalCenter: parent.verticalCenter; name: "shield-check"; size: 12; color: Theme.positive }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Готово"
+                text: qsTr("Готово")
                 color: Theme.positive
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs; font.weight: Font.Medium
             }
         }
 
         // Revert button
-        Rectangle {
-            width: revRow.width + Theme.s3; height: 28
-            radius: Theme.radiusPill
+        Pill {
+            id: revertPill
+            anchors.verticalCenter: parent.verticalCenter
             visible: root.pageTranslated && !PageTranslator.translating && !root.extracting
-            color: revHover.hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.16)
-                                   : Theme.glassLow
-            border.width: 1; border.color: revHover.hovered ? Theme.danger : Theme.glassStroke
-            Behavior on color { ColorAnimation { duration: Motion.fast } }
+            fillColor: hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.16)
+                               : Theme.glassLow
+            strokeColor: hovered ? Theme.danger : Theme.glassStroke
+            onClicked: root.revertTranslation()
             Row {
-                id: revRow; anchors.centerIn: parent; spacing: Theme.s1
+                spacing: Theme.s1
                 Icon { anchors.verticalCenter: parent.verticalCenter; name: "rotate-cw"; size: 11;
-                       color: revHover.hovered ? Theme.danger : Theme.textSecondary }
+                       color: revertPill.hovered ? Theme.danger : Theme.textSecondary }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Оригинал"
-                    color: revHover.hovered ? Theme.danger : Theme.textPrimary
+                    text: qsTr("Оригинал")
+                    color: revertPill.hovered ? Theme.danger : Theme.textPrimary
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                 }
             }
-            HoverHandler { id: revHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: root.revertTranslation() }
         }
 
         // Close
-        Rectangle {
-            width: 22; height: 22; radius: 11
-            color: closeHover.hovered ? Theme.glassMed : "transparent"
-            Icon { anchors.centerIn: parent; name: "x"; size: 11; color: Theme.textMuted }
-            HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: { root.open = false; root.requestClose() } }
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
+            iconName: "x"; size: 24; iconSize: 12
+            Accessible.name: qsTr("Закрыть переводчик")
+            onClicked: root.requestClose()
         }
     }
 
@@ -300,13 +292,13 @@ Item {
     Rectangle {
         id: langPopup
         visible: false
-        anchors.top: barRow.bottom
-        anchors.topMargin: Theme.s1
+        anchors.bottom: barRow.top
+        anchors.bottomMargin: Theme.s2
         anchors.left: barRow.left
         width: langFlow.width + Theme.s4
         height: langFlow.height + Theme.s3
         radius: Theme.radiusMd
-        color: Theme.bgRaised
+        color: Theme.surface
         border.width: 1; border.color: Theme.glassStroke
         z: 301
 
@@ -316,25 +308,14 @@ Item {
             spacing: Theme.s1
             Repeater {
                 model: root.targetLangs
-                delegate: Rectangle {
-                    id: lChip
+                delegate: Chip {
                     required property string modelData
-                    readonly property bool sel: PageTranslator.targetLanguage === modelData
-                    width: lLbl.implicitWidth + Theme.s3; height: 24
-                    radius: Theme.radiusPill
-                    color: sel ? Theme.accentSoft : Theme.glassLow
-                    border.width: 1; border.color: sel ? Theme.accent : Theme.glassStroke
-                    Text {
-                        id: lLbl; anchors.centerIn: parent; text: lChip.modelData
-                        color: lChip.sel ? Theme.accent : Theme.textSecondary
-                        font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    TapHandler {
-                        onTapped: {
-                            PageTranslator.targetLanguage = lChip.modelData
-                            langPopup.visible = false
-                        }
+                    height: 24
+                    label: modelData
+                    selected: PageTranslator.targetLanguage === modelData
+                    onClicked: {
+                        PageTranslator.targetLanguage = modelData
+                        langPopup.visible = false
                     }
                 }
             }

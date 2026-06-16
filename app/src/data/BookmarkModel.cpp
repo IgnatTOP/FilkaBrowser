@@ -155,6 +155,27 @@ bool BookmarkModel::toggle(const QUrl &url, const QString &title)
     return true;
 }
 
+QVariantList BookmarkModel::search(const QString &query, int limit) const
+{
+    QVariantList out;
+    const QString q = query.trimmed();
+    if (q.isEmpty() || limit <= 0)
+        return out;
+
+    for (const Entry &e : m_entries) {
+        if (out.size() >= limit)
+            break;
+        if (e.url.contains(q, Qt::CaseInsensitive)
+            || e.title.contains(q, Qt::CaseInsensitive)) {
+            out.append(QVariantMap{
+                {QStringLiteral("title"), e.title.isEmpty() ? e.url : e.title},
+                {QStringLiteral("url"), e.url},
+            });
+        }
+    }
+    return out;
+}
+
 void BookmarkModel::clear()
 {
     if (m_entries.isEmpty())

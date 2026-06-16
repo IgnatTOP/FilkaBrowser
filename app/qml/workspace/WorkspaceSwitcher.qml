@@ -31,10 +31,14 @@ Item {
                 height: 34
                 width: active ? labelRow.implicitWidth + 26 : 34
                 radius: Theme.radiusPill
+                clip: true                       // keep the fading label inside
                 color: active ? Qt.rgba(accent.r, accent.g, accent.b, 0.18)
                        : hover.hovered ? Theme.glassMed : Theme.glassLow
-                border.width: 1
-                border.color: active ? accent : Theme.glassStroke
+                border.width: activeFocus ? Theme.focusWidth : 1
+                border.color: activeFocus ? Theme.focusRing : (active ? accent : Theme.glassStroke)
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: pill.name
 
                 Behavior on width { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
                 Behavior on color { ColorAnimation { duration: Motion.fast } }
@@ -42,6 +46,9 @@ Item {
 
                 HoverHandler { id: hover }
                 TapHandler { onTapped: root.workspaces.activeIndex = pill.index }
+                Keys.onReturnPressed: root.workspaces.activeIndex = pill.index
+                Keys.onEnterPressed: root.workspaces.activeIndex = pill.index
+                Keys.onSpacePressed: root.workspaces.activeIndex = pill.index
 
                 Row {
                     id: labelRow
@@ -58,12 +65,14 @@ Item {
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        visible: pill.active
+                        visible: opacity > 0.01
+                        opacity: pill.active ? 1 : 0
                         text: pill.name
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSm
                         font.weight: Font.Medium
+                        Behavior on opacity { NumberAnimation { duration: Motion.base; easing.type: Motion.standard } }
                     }
                 }
             }

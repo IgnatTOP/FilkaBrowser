@@ -1,5 +1,7 @@
 #include "HistoryModel.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -134,6 +136,36 @@ void HistoryModel::recordVisit(const QUrl &url, const QString &title)
         q.addBindValue(now.toMSecsSinceEpoch());
         q.exec();
     }
+}
+
+QVariantList HistoryModel::search(const QString &query, int limit) const
+{
+    QVariantList out;
+    const QString q = query.trimmed();
+    if (q.isEmpty() || limit <= 0)
+        return out;
+
+    // m_entries is already most-recent first; a stable pass keeps recency as the
+    // tie-break while we prefer more-visited pages.
+    QList<const Entry *> hits;
+    for (const Entry &e : m_entries) {
+        if (e.url.contains(q, Qt::CaseInsensitive)
+            || e.title.contains(q, Qt::CaseInsensitive))
+            hits.append(&e);
+    }
+    std::stable_sort(hits.begin(), hits.end(), [](const Entry *a, const Entry *b) {
+        return a->visitCount > b->visitCount;
+    });
+
+    for (const Entry *e : hits) {
+        if (out.size() >= limit)
+            break;
+        out.append(QVariantMap{
+            {QStringLiteral("title"), e->title.isEmpty() ? e->url : e->title},
+            {QStringLiteral("url"), e->url},
+        });
+    }
+    return out;
 }
 
 void HistoryModel::removeEntry(int index)

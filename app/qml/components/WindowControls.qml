@@ -10,13 +10,13 @@ Row {
 
     IconButton {
         iconName: "minus"; size: 30; iconSize: 15
-        Accessible.name: "Minimize"
+        Accessible.name: qsTr("Свернуть")
         onClicked: if (root.target) root.target.showMinimized()
     }
     IconButton {
         iconName: root.target && root.target.visibility === Window.Maximized ? "copy" : "square"
         size: 30; iconSize: 13
-        Accessible.name: root.target && root.target.visibility === Window.Maximized ? "Restore" : "Maximize"
+        Accessible.name: root.target && root.target.visibility === Window.Maximized ? qsTr("Восстановить") : qsTr("Развернуть")
         onClicked: if (root.target) {
             root.target.visibility === Window.Maximized
                 ? root.target.showNormal() : root.target.showMaximized()
@@ -25,7 +25,7 @@ Row {
     IconButton {
         iconName: "x"; size: 30; iconSize: 15
         hoverColor: Theme.danger
-        Accessible.name: "Close"
+        Accessible.name: qsTr("Закрыть")
         onClicked: if (root.target) root.target.close()
     }
 }

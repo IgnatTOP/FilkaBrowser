@@ -61,7 +61,7 @@ Item {
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
                 selectByMouse: true
                 background: null
-                placeholderText: "Поиск на странице"
+                placeholderText: qsTr("Поиск на странице")
                 placeholderTextColor: Theme.textMuted
                 onTextChanged: root.findNext(false)
                 onAccepted: root.findNext(false)
@@ -70,7 +70,7 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.matchCount > 0 ? (root.activeMatch + "/" + root.matchCount)
-                                          : (field.text.length ? "нет совпадений" : "")
+                                          : (field.text.length ? qsTr("нет совпадений") : "")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
             }
@@ -79,9 +79,9 @@ Item {
         Row {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: Theme.s1 }
             spacing: 0
-            IconButton { iconName: "chevron-left";  size: 30; Accessible.name: "Назад";   onClicked: root.findNext(true) }
-            IconButton { iconName: "chevron-right"; size: 30; Accessible.name: "Вперёд";  onClicked: root.findNext(false) }
-            IconButton { iconName: "x";             size: 30; Accessible.name: "Закрыть"; onClicked: root.closeBar() }
+            IconButton { iconName: "chevron-left";  size: 30; Accessible.name: qsTr("Назад");   onClicked: root.findNext(true) }
+            IconButton { iconName: "chevron-right"; size: 30; Accessible.name: qsTr("Вперёд");  onClicked: root.findNext(false) }
+            IconButton { iconName: "x";             size: 30; Accessible.name: qsTr("Закрыть"); onClicked: root.closeBar() }
         }
     }
 }

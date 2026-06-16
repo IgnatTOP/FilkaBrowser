@@ -1,13 +1,22 @@
 #include "WorkspaceModel.h"
 
+// Only the first WorkspaceModel (the primary window) owns the persisted session:
+// it restores last run's tabs and writes them back. Additional windows (Ctrl+N)
+// open fresh so they don't duplicate or clobber the saved session.
+bool WorkspaceModel::s_sessionOwned = false;
+
 WorkspaceModel::WorkspaceModel(QObject *parent) : QAbstractListModel(parent)
 {
     // Default workspaces. Accents echo the aurora palette from the design system.
     // Each opens on Filka's start page (empty URL -> "about:blank" sentinel).
-    addWorkspace(QStringLiteral("Работа"),     QStringLiteral("briefcase"),      QColor("#2E7CF6"), {});
-    addWorkspace(QStringLiteral("Разработка"), QStringLiteral("code"),           QColor("#22D3EE"), {});
-    addWorkspace(QStringLiteral("Личное"),     QStringLiteral("house"),          QColor("#8B5CF6"), {});
+    addWorkspace(QStringLiteral("Работа"),     QStringLiteral("briefcase"),      QColor("#FF6A4D"), {});
+    addWorkspace(QStringLiteral("Разработка"), QStringLiteral("code"),           QColor("#FFA63D"), {});
+    addWorkspace(QStringLiteral("Личное"),     QStringLiteral("house"),          QColor("#9B5CF6"), {});
     addWorkspace(QStringLiteral("Учёба"),      QStringLiteral("graduation-cap"), QColor("#34D399"), {});
+
+    if (s_sessionOwned)
+        return;                 // secondary window: no restore, no autosave
+    s_sessionOwned = true;
 
     // Reopen last session's tabs, then wire up debounced auto-save.
     restoreSession();
@@ -112,7 +121,7 @@ TabModel *WorkspaceModel::activeTabs() const
 
 QColor WorkspaceModel::activeAccent() const
 {
-    return valid(m_activeIndex) ? m_items.at(m_activeIndex).accent : QColor("#2E7CF6");
+    return valid(m_activeIndex) ? m_items.at(m_activeIndex).accent : QColor("#FF6A4D");
 }
 
 TabModel *WorkspaceModel::tabsAt(int index) const

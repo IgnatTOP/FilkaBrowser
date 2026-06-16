@@ -13,6 +13,7 @@
 #include <QSqlDatabase>
 #include <QString>
 #include <QUrl>
+#include <QVariantList>
 #include <qqmlregistration.h>
 
 class HistoryModel : public QAbstractListModel
@@ -44,6 +45,10 @@ public:
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
     Q_INVOKABLE void removeEntry(int index);
     Q_INVOKABLE void clear();
+
+    // Address-bar autocomplete: case-insensitive substring match on url/title,
+    // ranked by visit count then recency. Returns [{title, url}] maps.
+    Q_INVOKABLE QVariantList search(const QString &query, int limit = 6) const;
 
 signals:
     void countChanged();

@@ -24,6 +24,8 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
     case IconRole:    return t.icon;
     case LoadingRole: return t.loading;
     case PinnedRole:  return t.pinned;
+    case MutedRole:   return t.muted;
+    case AudibleRole: return t.audible;
     default:          return {};
     }
 }
@@ -36,6 +38,8 @@ QHash<int, QByteArray> TabModel::roleNames() const
         {IconRole, "iconUrl"},
         {LoadingRole, "loading"},
         {PinnedRole, "pinned"},
+        {MutedRole, "muted"},
+        {AudibleRole, "audible"},
     };
 }
 
@@ -73,20 +77,60 @@ void TabModel::restore(const QStringList &urls, int activeIndex)
     emit activeIndexChanged();
 }
 
-int TabModel::addTab(const QUrl &url, bool activate)
+int TabModel::insertTab(int row, const QUrl &url, bool activate)
 {
-    const int row = int(m_tabs.size());
+    row = qBound(0, row, int(m_tabs.size()));
     beginInsertRows({}, row, row);
     TabData t;
     t.url = url.isEmpty() ? kHomeUrl : url;
-    m_tabs.append(t);
+    m_tabs.insert(row, t);
     endInsertRows();
     emit countChanged();
     emit changed();
 
+    // Inserting before the active tab shifts its index by one — keep it pinned
+    // to the same tab unless we're explicitly activating the new one.
+    if (!activate && row <= m_activeIndex) {
+        ++m_activeIndex;
+        emit activeIndexChanged();
+    }
     if (activate)
         setActiveIndex(row);
     return row;
+}
+
+int TabModel::addTab(const QUrl &url, bool activate)
+{
+    return insertTab(int(m_tabs.size()), url, activate);
+}
+
+int TabModel::addTabAfter(int index, const QUrl &url, bool activate)
+{
+    return insertTab(valid(index) ? index + 1 : int(m_tabs.size()), url, activate);
+}
+
+int TabModel::duplicateTab(int index)
+{
+    if (!valid(index))
+        return -1;
+    return insertTab(index + 1, m_tabs.at(index).url, true);
+}
+
+void TabModel::removeRow(int index)
+{
+    // Remember the closed tab's URL so Ctrl+Shift+T can bring it back. Blank
+    // start-page tabs aren't worth restoring.
+    const QUrl url = m_tabs.at(index).url;
+    if (url.isValid() && url.toString() != QLatin1String("about:blank")) {
+        m_closed.append({url});
+        if (m_closed.size() > kMaxClosed)
+            m_closed.removeFirst();
+    }
+
+    beginRemoveRows({}, index, index);
+    m_tabs.removeAt(index);
+    endRemoveRows();
+    emit countChanged();
 }
 
 void TabModel::closeTab(int index)
@@ -94,10 +138,7 @@ void TabModel::closeTab(int index)
     if (!valid(index))
         return;
 
-    beginRemoveRows({}, index, index);
-    m_tabs.removeAt(index);
-    endRemoveRows();
-    emit countChanged();
+    removeRow(index);
 
     if (m_tabs.isEmpty()) {
         addTab();              // never leave the window tab-less
@@ -115,6 +156,52 @@ void TabModel::closeTab(int index)
     m_activeIndex = clamped;
     emit activeIndexChanged();
     emit changed();
+}
+
+void TabModel::closeOthers(int index)
+{
+    if (!valid(index))
+        return;
+    // Remove from the back so indices stay valid; skip the kept tab and pinned
+    // tabs (closing those would surprise the user, as in Chrome/Firefox).
+    for (int i = int(m_tabs.size()) - 1; i >= 0; --i) {
+        if (i == index || m_tabs.at(i).pinned)
+            continue;
+        removeRow(i);
+        if (i < index)
+            --index;
+    }
+    m_activeIndex = index;
+    emit activeIndexChanged();
+    emit changed();
+}
+
+void TabModel::closeToRight(int index)
+{
+    if (!valid(index))
+        return;
+    bool removed = false;
+    for (int i = int(m_tabs.size()) - 1; i > index; --i) {
+        if (m_tabs.at(i).pinned)
+            continue;
+        removeRow(i);
+        removed = true;
+    }
+    if (!removed)
+        return;
+    if (m_activeIndex > index) {
+        m_activeIndex = index;
+        emit activeIndexChanged();
+    }
+    emit changed();
+}
+
+int TabModel::reopenClosedTab()
+{
+    if (m_closed.isEmpty())
+        return -1;
+    const QUrl url = m_closed.takeLast().url;
+    return addTab(url, true);
 }
 
 void TabModel::moveTab(int from, int to)
@@ -143,6 +230,22 @@ void TabModel::setPinned(int index, bool pinned)
         return;
     m_tabs[index].pinned = pinned;
     touch(index, {PinnedRole});
+}
+
+void TabModel::setMuted(int index, bool muted)
+{
+    if (!valid(index) || m_tabs[index].muted == muted)
+        return;
+    m_tabs[index].muted = muted;
+    touch(index, {MutedRole});
+}
+
+void TabModel::updateAudible(int index, bool audible)
+{
+    if (!valid(index) || m_tabs[index].audible == audible)
+        return;
+    m_tabs[index].audible = audible;
+    touch(index, {AudibleRole});
 }
 
 void TabModel::updateTitle(int index, const QString &title)

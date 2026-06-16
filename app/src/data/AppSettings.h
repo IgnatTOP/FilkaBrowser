@@ -49,6 +49,8 @@ public:
     Q_INVOKABLE QStringList searchEngines() const;
     // Builds a full search URL for the active engine and the given query.
     Q_INVOKABLE QString searchUrl(const QString &query) const;
+    // Writable downloads directory — used as the target for "save as PDF".
+    Q_INVOKABLE QString downloadDir() const;
 
 signals:
     void onboardedChanged();

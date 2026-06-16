@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(Filka
-    VERSION 0.1.0
+    VERSION 3.1.1
     DESCRIPTION "Filka Browser — next-generation premium browser"
     LANGUAGES CXX)
 
@@ -13,8 +13,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Qt 6.7+ is required (WebEngine + modern QML / MultiEffect blur).
-find_package(Qt6 6.7 REQUIRED COMPONENTS
+# Qt 6.8+ is required (WebEngine permission API / persistent permissions,
+# modern QML / MultiEffect blur).
+find_package(Qt6 6.8 REQUIRED COMPONENTS
     Core
     Gui
     Qml
@@ -25,6 +26,6 @@ find_package(Qt6 6.7 REQUIRED COMPONENTS
     Sql
     Network)
 
-qt_standard_project_setup(REQUIRES 6.7)
+qt_standard_project_setup(REQUIRES 6.8)
 
 add_subdirectory(app)

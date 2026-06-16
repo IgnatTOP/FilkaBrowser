@@ -7,7 +7,7 @@ import Filka
 // binds directly to its WebEngineDownloadRequest, so bytes/state update live.
 SidePanel {
     id: root
-    title: "Загрузки"
+    title: qsTr("Загрузки")
 
     property var downloads: []
     signal clearList()
@@ -34,7 +34,7 @@ SidePanel {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Загрузок пока нет"
+                text: qsTr("Загрузок пока нет")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
             }
@@ -52,6 +52,15 @@ SidePanel {
                 id: col
                 width: parent.width
                 spacing: Theme.s2
+
+                // New downloads drop in at the top and push the rest down.
+                add: Transition {
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.base; easing.type: Motion.standard }
+                    NumberAnimation { property: "y"; duration: Motion.base; easing.type: Motion.emphasized }
+                }
+                move: Transition {
+                    NumberAnimation { property: "y"; duration: Motion.base; easing.type: Motion.emphasized }
+                }
 
                 Repeater {
                     model: root.downloads
@@ -107,8 +116,8 @@ SidePanel {
                             Text {
                                 width: parent.width
                                 visible: row.done || row.failed
-                                text: row.done ? root.human(row.modelData.totalBytes) + " — завершено"
-                                               : "отменено"
+                                text: row.done ? qsTr("%1 - завершено").arg(root.human(row.modelData.totalBytes))
+                                               : qsTr("отменено")
                                 color: row.done ? Theme.textMuted : Theme.danger
                                 font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                             }
@@ -120,7 +129,7 @@ SidePanel {
                             anchors { right: parent.right; rightMargin: Theme.s2; verticalCenter: parent.verticalCenter }
                             iconName: row.done ? "copy" : "x"
                             size: 30
-                            Accessible.name: row.done ? "Открыть папку" : "Отменить"
+                            Accessible.name: row.done ? qsTr("Открыть папку") : qsTr("Отменить")
                             onClicked: {
                                 if (row.done)
                                     Qt.openUrlExternally("file://" + row.modelData.downloadDirectory)
@@ -138,7 +147,7 @@ SidePanel {
                     color: clearHover.hovered ? Theme.glassMed : "transparent"
                     Text {
                         anchors.centerIn: parent
-                        text: "Очистить список"
+                        text: qsTr("Очистить список")
                         color: Theme.textSecondary
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
                     }

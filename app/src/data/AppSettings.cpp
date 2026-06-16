@@ -1,5 +1,7 @@
 #include "AppSettings.h"
 
+#include <QDir>
+#include <QStandardPaths>
 #include <QUrl>
 
 namespace {
@@ -21,7 +23,7 @@ AppSettings::AppSettings(QObject *parent) : QObject(parent)
     m_onboarded = m_store.value(QStringLiteral("general/onboarded"), false).toBool();
     m_darkMode = m_store.value(QStringLiteral("appearance/darkMode"), true).toBool();
     m_accentColor = m_store.value(QStringLiteral("appearance/accentColor"),
-                                  QStringLiteral("#2E7CF6")).toString();
+                                  QStringLiteral("#FF6A4D")).toString();
     m_startPageAurora = m_store.value(QStringLiteral("appearance/startPageAurora"),
                                       true).toBool();
     m_searchEngine = m_store.value(QStringLiteral("search/engine"),
@@ -99,6 +101,15 @@ QStringList AppSettings::searchEngines() const
     for (const auto &e : kEngines)
         names << QString::fromLatin1(e.name);
     return names;
+}
+
+QString AppSettings::downloadDir() const
+{
+    QString path = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (path.isEmpty())
+        path = QDir::home().filePath(QStringLiteral("Downloads"));
+    QDir().mkpath(path);
+    return path;
 }
 
 QString AppSettings::searchUrl(const QString &query) const
