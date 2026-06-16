@@ -79,7 +79,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            ninja-build \
+            ninja-build imagemagick \
             libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev \
             libnss3 libxcomposite-dev libxdamage-dev libxrandr-dev \
             libxtst-dev libasound2-dev libxcb-cursor0
@@ -112,7 +112,10 @@ jobs:
         run: |
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          cp app/assets/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/filka.png
+          # logo.png is 1024×1024; linuxdeploy only accepts valid hicolor sizes,
+          # so down-scale it to a clean 256×256 for the desktop/AppImage icon.
+          convert app/assets/logo.png -resize 256x256 \
+            AppDir/usr/share/icons/hicolor/256x256/apps/filka.png
           cat > AppDir/usr/share/applications/filka.desktop <<'EOF'
           [Desktop Entry]
           Type=Application
