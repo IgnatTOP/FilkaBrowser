@@ -148,6 +148,10 @@ jobs:
           # The Mimer SQL driver plugin needs a missing libmimerapi.so; we only
           # ship the SQLite driver, so drop it before deployment.
           rm -f "$QT_PLUGINS_DIR/sqldrivers/libqsqlmimer.so"
+          # The NMEA position plugin (pulled in via WebEngine's QtPositioning dep)
+          # links libQt6SerialPort, which we don't install. We don't use GPS
+          # positioning, so remove it so linuxdeploy doesn't chase that library.
+          rm -f "$QT_PLUGINS_DIR/position/libqtposition_nmea.so"
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --executable AppDir/usr/bin/filka \
