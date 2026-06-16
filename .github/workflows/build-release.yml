@@ -94,6 +94,7 @@ jobs:
           modules: >-
             qtwebengine
             qtwebchannel
+            qtpositioning
 
       - name: Configure
         run: >
