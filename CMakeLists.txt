@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(Filka
-    VERSION 3.1.1
+    VERSION 3.2.1
     DESCRIPTION "Filka Browser — next-generation premium browser"
     LANGUAGES CXX)
 
@@ -21,11 +21,13 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Qml
     Quick
     QuickControls2
+    WebEngineCore
     WebEngineQuick
     Svg
     Sql
     Network)
 
 qt_standard_project_setup(REQUIRES 6.8)
+include(CTest)
 
 add_subdirectory(app)

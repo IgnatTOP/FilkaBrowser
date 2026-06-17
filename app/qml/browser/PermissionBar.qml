@@ -18,17 +18,17 @@ Item {
     function labelFor(p) {
         if (!p) return ""
         switch (p.permissionType) {
-        case WebEnginePermission.Geolocation:            return "доступ к вашему местоположению"
-        case WebEnginePermission.MediaAudioCapture:      return "доступ к микрофону"
-        case WebEnginePermission.MediaVideoCapture:      return "доступ к камере"
-        case WebEnginePermission.MediaAudioVideoCapture: return "доступ к камере и микрофону"
-        case WebEnginePermission.MouseLock:              return "захват курсора мыши"
-        case WebEnginePermission.DesktopVideoCapture:    return "запись экрана"
-        case WebEnginePermission.DesktopAudioVideoCapture:return "запись экрана и звука"
-        case WebEnginePermission.Notifications:          return "показ уведомлений"
-        case WebEnginePermission.ClipboardReadWrite:     return "доступ к буферу обмена"
-        case WebEnginePermission.LocalFontsAccess:       return "доступ к локальным шрифтам"
-        default:                                         return "дополнительные разрешения"
+        case WebEnginePermission.Geolocation:            return qsTr("доступ к вашему местоположению")
+        case WebEnginePermission.MediaAudioCapture:      return qsTr("доступ к микрофону")
+        case WebEnginePermission.MediaVideoCapture:      return qsTr("доступ к камере")
+        case WebEnginePermission.MediaAudioVideoCapture: return qsTr("доступ к камере и микрофону")
+        case WebEnginePermission.MouseLock:              return qsTr("захват курсора мыши")
+        case WebEnginePermission.DesktopVideoCapture:    return qsTr("запись экрана")
+        case WebEnginePermission.DesktopAudioVideoCapture:return qsTr("запись экрана и звука")
+        case WebEnginePermission.Notifications:          return qsTr("показ уведомлений")
+        case WebEnginePermission.ClipboardReadWrite:     return qsTr("доступ к буферу обмена")
+        case WebEnginePermission.LocalFontsAccess:       return qsTr("доступ к локальным шрифтам")
+        default:                                         return qsTr("дополнительные разрешения")
         }
     }
     function host(p) {
@@ -45,7 +45,7 @@ Item {
                   leftMargin: Theme.s3; rightMargin: Theme.s3 }
         height: 44
         radius: Theme.radiusMd
-        color: Theme.glassHigh
+        color: Theme.surface
         border.width: 1
         border.color: Theme.accent
 
@@ -75,10 +75,11 @@ Item {
                 hPadding: Theme.s4
                 strokeWidth: 0
                 fillColor: hovered ? Theme.accent : Theme.accentSoft
+                accessibleName: qsTr("Разрешить запрос сайта")
                 onClicked: root.grant()
                 Text {
                     text: qsTr("Разрешить")
-                    color: allowPill.hovered ? "white" : Theme.accent
+                    color: allowPill.hovered ? Theme.accentForeground : Theme.accentSoftForeground
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm; font.weight: Font.Medium
                 }
             }
@@ -87,7 +88,8 @@ Item {
                 radius: Theme.radiusSm
                 implicitHeight: 30
                 hPadding: Theme.s4
-                fillColor: hovered ? Theme.glassHigh : Theme.glassLow
+                fillColor: hovered ? Theme.hoverFill : Theme.surfaceAlt
+                accessibleName: qsTr("Запретить запрос сайта")
                 onClicked: root.deny()
                 Text {
                     text: qsTr("Запретить")

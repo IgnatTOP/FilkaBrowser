@@ -1,9 +1,9 @@
 import QtQuick
 import Filka
 
-// TabItem — a single tab chip. Layout-agnostic: the TabStrip sizes it for the
+// TabItem — a single tab card. Layout-agnostic: the TabStrip sizes it for the
 // vertical sidebar or the horizontal bar. Shows favicon (or a spinner while
-// loading), elided title and a close button on hover/active.
+// loading), elided title and close/audio controls on hover/active.
 Rectangle {
     id: root
 
@@ -30,10 +30,12 @@ Rectangle {
     readonly property bool compactClose: root.compact && showClose
 
     radius: Theme.radiusMd
-    color: active ? Theme.glassHigh
-          : hover.hovered ? Theme.glassMed : "transparent"
+    color: active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+          : hover.hovered ? Theme.glassLow : "transparent"
     border.width: activeFocus ? Theme.focusWidth : (active ? 1 : 0)
-    border.color: activeFocus ? Theme.focusRing : Theme.glassStroke
+    border.color: activeFocus ? Theme.focusRing
+                : (active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.38)
+                          : "transparent")
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
     Accessible.name: root.title
@@ -43,9 +45,12 @@ Rectangle {
     // Accent rail on the active tab — Arc-like identity.
     Rectangle {
         visible: root.active && !root.compact
-        anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 4 }
-        width: 3; height: parent.height * 0.5; radius: 2
-        color: Theme.accent
+        anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 5 }
+        width: 3; height: parent.height * 0.52; radius: 2
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Theme.brandLavender }
+            GradientStop { position: 1.0; color: Theme.brandBlue }
+        }
     }
 
     HoverHandler { id: hover }
@@ -60,14 +65,14 @@ Rectangle {
         anchors.left: root.compact ? undefined : parent.left
         anchors.horizontalCenter: root.compact ? parent.horizontalCenter : undefined
         anchors.right: root.compact ? undefined : parent.right
-        anchors.leftMargin: Theme.s3
+        anchors.leftMargin: Theme.s2
         anchors.rightMargin: Theme.s2
         spacing: Theme.s2
         visible: !root.compactClose
 
         // Favicon, or a spinning loader while the page loads.
         Item {
-            width: 16; height: 16
+            width: 18; height: 18
             anchors.verticalCenter: parent.verticalCenter
 
             Image {
@@ -89,7 +94,7 @@ Rectangle {
                 visible: root.loading
                 name: "loader-circle"; size: 14; color: Theme.accent
                 RotationAnimator on rotation {
-                    running: spinner.visible; loops: Animation.Infinite
+                    running: spinner.visible && !Motion.reducedMotion; loops: Animation.Infinite
                     from: 0; to: 360; duration: 700
                 }
             }
@@ -102,7 +107,7 @@ Rectangle {
             text: root.title
             color: root.active ? Theme.textPrimary : Theme.textSecondary
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSm
+            font.pixelSize: Theme.fontSizeXs
             elide: Text.ElideRight
             maximumLineCount: 1
         }

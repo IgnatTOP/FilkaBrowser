@@ -14,6 +14,7 @@ Button {
     leftPadding: 18
     rightPadding: 18
     focusPolicy: Qt.TabFocus
+    opacity: enabled ? 1 : 0.46
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontSizeSm
     font.weight: Font.Medium
@@ -21,7 +22,7 @@ Button {
     contentItem: Text {
         text: control.text
         font: control.font
-        color: control.accentVariant ? "white" : Theme.textPrimary
+        color: control.accentVariant ? Theme.accentForeground : Theme.textPrimary
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight

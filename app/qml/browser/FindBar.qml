@@ -14,16 +14,36 @@ Item {
 
     property int matchCount: 0
     property int activeMatch: 0
+    property var previousView: null
 
-    implicitHeight: active ? 48 : 0
+    implicitHeight: active ? 44 : 0
     clip: true
     Behavior on implicitHeight { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
 
-    function openBar() { active = true; field.forceActiveFocus(); field.selectAll() }
-    function closeBar() { active = false; if (view) view.findText(""); root.closed() }
+    function openBar() { field.forceActiveFocus(); field.selectAll() }
+    function closeBar() {
+        if (view)
+            view.findText("")
+        field.text = ""
+        field.focus = false
+        matchCount = 0
+        activeMatch = 0
+        if (view)
+            view.forceActiveFocus()
+        root.closed()
+    }
     function findNext(backward) {
         if (!view || field.text.length === 0) { root.matchCount = 0; return }
         view.findText(field.text, backward ? WebEngineView.FindBackward : 0)
+    }
+    onViewChanged: {
+        if (previousView && previousView !== view)
+            previousView.findText("")
+        previousView = view
+        matchCount = 0
+        activeMatch = 0
+        if (active && view && field.text.length > 0)
+            findNext(false)
     }
 
     Connections {
@@ -37,15 +57,15 @@ Item {
     Rectangle {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom
                   leftMargin: Theme.s3; rightMargin: Theme.s3 }
-        height: 40
-        radius: Theme.radiusPill
-        color: Theme.glassMed
+        height: 36
+        radius: Theme.radiusMd
+        color: Theme.surface
         border.width: 1
-        border.color: field.activeFocus ? Theme.accent : Theme.glassStroke
+        border.color: field.activeFocus ? Theme.accent : Theme.outline
 
         Row {
             anchors.fill: parent
-            anchors.leftMargin: Theme.s4
+            anchors.leftMargin: Theme.s3
             anchors.rightMargin: Theme.s2
             spacing: Theme.s2
 

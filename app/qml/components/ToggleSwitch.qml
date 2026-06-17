@@ -8,13 +8,16 @@ Item {
     id: root
 
     property bool checked: false
+    property string accessibleName: ""
     signal toggled()
 
     implicitWidth: 50
     implicitHeight: 28
     activeFocusOnTab: true
+    opacity: enabled ? 1 : 0.42
 
     Accessible.role: Accessible.CheckBox
+    Accessible.name: root.accessibleName
     Accessible.checkable: true
     Accessible.checked: root.checked
 
@@ -22,11 +25,13 @@ Item {
         id: track
         anchors.fill: parent
         radius: height / 2
-        color: root.checked ? Theme.accent : (hover.hovered ? Theme.glassHigh : Theme.glassMed)
+        color: root.checked ? Theme.accent : (hover.hovered ? Theme.surface : Theme.surfaceAlt)
         border.width: root.activeFocus ? Theme.focusWidth : 1
-        border.color: root.activeFocus ? Theme.focusRing : Theme.glassStroke
+        border.color: root.activeFocus ? Theme.focusRing : Theme.outline
+        scale: press.pressed ? 0.96 : 1.0
         Behavior on color { ColorAnimation { duration: Motion.fast } }
         Behavior on border.color { ColorAnimation { duration: Motion.fast } }
+        Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
 
         Rectangle {
             id: knob
@@ -40,9 +45,9 @@ Item {
         }
     }
 
-    HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: root.toggled() }
-    Keys.onReturnPressed: root.toggled()
-    Keys.onEnterPressed: root.toggled()
-    Keys.onSpacePressed: root.toggled()
+    HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.PointingHandCursor }
+    TapHandler { id: press; enabled: root.enabled; onTapped: root.toggled() }
+    Keys.onReturnPressed: if (root.enabled) root.toggled()
+    Keys.onEnterPressed: if (root.enabled) root.toggled()
+    Keys.onSpacePressed: if (root.enabled) root.toggled()
 }

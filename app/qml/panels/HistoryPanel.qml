@@ -10,6 +10,7 @@ SidePanel {
     title: qsTr("История")
 
     signal navigate(string url)
+    property bool confirmClear: false
 
     // Human-friendly relative time ("5 мин назад", "вчера", or a date).
     function relTime(dt) {
@@ -31,6 +32,11 @@ SidePanel {
             id: toolbar
             width: parent.width
             height: 30
+            Timer {
+                id: clearConfirmTimer
+                interval: 2200
+                onTriggered: root.confirmClear = false
+            }
             Text {
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                 text: HistoryModel.count + " " + Theme.plural(HistoryModel.count, qsTr("запись"), qsTr("записи"), qsTr("записей"))
@@ -44,8 +50,18 @@ SidePanel {
                 enabled: HistoryModel.count > 0
                 opacity: enabled ? 1 : 0.4
                 iconColor: Theme.danger
-                Accessible.name: qsTr("Очистить историю")
-                onClicked: HistoryModel.clear()
+                active: root.confirmClear
+                Accessible.name: root.confirmClear ? qsTr("Подтвердить очистку истории") : qsTr("Очистить историю")
+                onClicked: {
+                    if (!root.confirmClear) {
+                        root.confirmClear = true
+                        clearConfirmTimer.restart()
+                        return
+                    }
+                    clearConfirmTimer.stop()
+                    root.confirmClear = false
+                    HistoryModel.clear()
+                }
             }
         }
 
@@ -70,7 +86,7 @@ SidePanel {
             spacing: 2
             model: HistoryModel
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            ScrollBar.vertical: FilkaScrollBar {}
 
             // Entries slide+fade as they're added/removed; the rest reflow.
             add: Transition {
@@ -89,8 +105,8 @@ SidePanel {
                 id: row
                 width: ListView.view.width
                 height: 56
-                radius: Theme.radiusMd
-                color: hover.hovered ? Theme.glassMed : "transparent"
+                radius: Theme.radiusSm
+                color: hover.hovered ? Theme.hoverFill : "transparent"
                 border.width: activeFocus ? Theme.focusWidth : 0
                 border.color: Theme.focusRing
                 activeFocusOnTab: true

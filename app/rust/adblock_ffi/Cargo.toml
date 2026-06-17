@@ -1,0 +1,19 @@
+[package]
+name = "filka_adblock_ffi"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+
+[lib]
+name = "filka_adblock_ffi"
+crate-type = ["staticlib"]
+
+[dependencies]
+adblock = { version = "0.12.5", default-features = false, features = [
+    "css-validation",
+    "embedded-domain-resolver",
+    "full-regex-handling",
+    "resource-assembler"
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

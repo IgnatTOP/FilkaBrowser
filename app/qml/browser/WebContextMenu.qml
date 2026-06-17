@@ -13,6 +13,7 @@ Menu {
     property var request: null
     property var tabsModel: null
     signal inspectRequested()
+    signal pictureInPictureRequested()
 
     width: 250
     padding: 6
@@ -31,7 +32,7 @@ Menu {
     background: Rectangle {
         implicitWidth: 250
         radius: Theme.radiusMd
-        color: Theme.bgRaised
+        color: Theme.modalSurface
         border.width: 1
         border.color: Theme.glassStroke
     }
@@ -100,6 +101,14 @@ Menu {
         text: "Копировать изображение"
         visible: menu.request && menu.request.mediaType === WebEngineContextMenuRequest.MediaTypeImage
         onTriggered: menu.view.triggerWebAction(WebEngineView.CopyImageToClipboard)
+    }
+
+    // ---- Media actions ----
+    MSep { visible: menu.request && menu.request.mediaType === WebEngineContextMenuRequest.MediaTypeVideo }
+    MItem {
+        text: qsTr("Открыть в Picture-in-Picture")
+        visible: menu.request && menu.request.mediaType === WebEngineContextMenuRequest.MediaTypeVideo
+        onTriggered: menu.pictureInPictureRequested()
     }
 
     // ---- Editing ----

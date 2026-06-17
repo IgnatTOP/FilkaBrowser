@@ -1,7 +1,8 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Window
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Window
 import QtWebEngine
 import Filka
 
@@ -13,16 +14,21 @@ import Filka
 Item {
     id: root
 
-    property bool verticalTabs: true
-    readonly property int sidebarWidth: 248
+    readonly property bool verticalTabs: AppSettings.verticalTabs
+    property bool privateMode: false
+    property bool handleProfileDownloads: true
+    readonly property int sidebarWidth: 274
     property var profile
+    property var windowTarget: null
 
     // Fullscreen is part of shell state; alias keeps Main.qml's binding intact.
     property alias fullScreen: shell.fullScreen
 
     // Raised on Ctrl+N — the host window opens another top-level Filka window.
     signal newWindowRequested()
+    signal newPrivateWindowRequested()
     function newWindow() { newWindowRequested() }
+    function newPrivateWindow() { newPrivateWindowRequested() }
 
     WorkspaceModel { id: workspaces }
     ShellState { id: shell }
@@ -30,6 +36,7 @@ Item {
     // ===== Active pane / view resolution =====
     property Item activePane: null
     property Item activeView: activePane ? activePane.activeView : null
+    property var fullScreenOwner: null
 
     readonly property bool canGoBack: activeView ? activeView.canGoBack : false
     readonly property bool canGoForward: activeView ? activeView.canGoForward : false
@@ -42,9 +49,15 @@ Item {
     // True when the active tab sits on the start page (no real web content).
     readonly property bool atHome: !activeView || activeView.url == "about:blank"
     readonly property real zoomFactor: activeView ? activeView.zoomFactor : 1.0
+    readonly property var activeTabs: workspaces.activeTabs
+    readonly property var audibleTabs: workspaces.audibleTabs
 
     function syncPane() { activePane = paneRep.itemAt(workspaces.activeIndex) }
     Component.onCompleted: syncPane()
+    onActiveViewChanged: {
+        if (shell.fullScreen && fullScreenOwner && activeView !== fullScreenOwner)
+            exitFullScreen()
+    }
     Connections {
         target: workspaces
         function onActiveIndexChanged() { root.syncPane() }
@@ -65,11 +78,19 @@ Item {
         BookmarkModel.toggle(activeView.url, activeView.title ? activeView.title : currentUrl)
     }
 
-    // ===== Navigation actions (shared by toolbar + shortcuts) =====
-    // Resolve raw text (URL or search query) and load it in the active tab.
+    // ===== Navigation actions (shared by sidebar, home and shortcuts) =====
+    function resolve(text) {
+        var t = ("" + text).trim()
+        if (t.length === 0) return ""
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return t
+        if (/^(localhost|[0-9.]+)(:[0-9]+)?(\/.*)?$/i.test(t)) return "http://" + t
+        if (!/\s/.test(t) && /^[^\s]+\.[^\s]{2,}/.test(t)) return "https://" + t
+        return AppSettings.searchUrl(t)
+    }
+
     function navigate(text) {
         if (!activeView) return
-        var url = navBar.resolve(text)
+        var url = resolve(text)
         if (url.length) activeView.url = url
     }
     function newTab() {
@@ -92,7 +113,7 @@ Item {
         if (!activeView || atHome) return
         var name = (activeView.title && activeView.title.length ? activeView.title : "Filka")
                    .replace(/[\/\\:*?"<>|]+/g, "_").slice(0, 80)
-        var path = AppSettings.downloadDir() + "/" + name + ".pdf"
+        var path = AppSettings.downloadPath + "/" + name + ".pdf"
         activeView.printToPdf(path)
     }
     function cycleTab(dir) {
@@ -110,106 +131,141 @@ Item {
             activeView.zoomFactor = Math.max(0.25, Math.min(5.0, activeView.zoomFactor + delta))
     }
     function resetZoom() { if (activeView) activeView.zoomFactor = 1.0 }
-    function focusAddress() { navBar.focusAddress() }
+    function focusAddress() { pageBar.focusAddress() }
     function openFind() { shell.showFind = true; findBar.openBar() }
-
-    // ===== Top chrome: optional horizontal tab bar + toolbar =====
-    ColumnLayout {
-        id: chrome
-        visible: !shell.fullScreen
-        anchors { top: parent.top; left: parent.left; right: parent.right }
-        spacing: 0
-
-        // Horizontal tab bar (only when tabs are on top).
-        TabPanel {
-            Layout.fillWidth: true
-            Layout.preferredHeight: root.verticalTabs ? 0 : 48
-            visible: !root.verticalTabs
-            vertical: false
-            workspaces: workspaces
+    function closeFind() { findBar.closeBar() }
+    function openCommandPalette() { shell.activeOverlay = "commandPalette" }
+    function openTabSearch() { shell.activeOverlay = "tabSearch" }
+    function captureTitle() {
+        return activeView && activeView.title && activeView.title.length
+                ? activeView.title : (workspaces.activeName.length ? workspaces.activeName : "Filka")
+    }
+    function captureVisible(copyToClipboard) {
+        if (!activeView && !content)
+            return
+        var target = activeView || content
+        var output = ScreenshotHelper.makePath(AppSettings.downloadPath, captureTitle())
+        target.grabToImage(function(result) {
+            var path = copyToClipboard ? ScreenshotHelper.temporaryPath() : output
+            if (!result.saveToFile(path))
+                return
+            if (copyToClipboard)
+                ScreenshotHelper.copyImageFile(path)
+            screenshotToast.savedPath = copyToClipboard ? "" : path
+            screenshotToast.message = copyToClipboard ? qsTr("Скриншот скопирован") : qsTr("Скриншот сохранён")
+            screenshotToast.open()
+        })
+    }
+    function captureArea(rect, copyToClipboard) {
+        if (!content || rect.width < 8 || rect.height < 8)
+            return
+        var output = ScreenshotHelper.makePath(AppSettings.downloadPath, captureTitle())
+        var temp = ScreenshotHelper.temporaryPath()
+        content.grabToImage(function(result) {
+            if (!result.saveToFile(temp))
+                return
+            if (!ScreenshotHelper.cropImageFile(temp, output, rect, Qt.size(content.width, content.height)))
+                return
+            if (copyToClipboard)
+                ScreenshotHelper.copyImageFile(output)
+            screenshotToast.savedPath = copyToClipboard ? "" : output
+            screenshotToast.message = copyToClipboard ? qsTr("Фрагмент скопирован") : qsTr("Скриншот сохранён")
+            screenshotToast.open()
+        })
+    }
+    function screenshotTab(tabIndex) {
+        if (!workspaces.activeTabs)
+            return
+        workspaces.activeTabs.activeIndex = tabIndex
+        Qt.callLater(function() { root.captureVisible(false) })
+    }
+    function startAreaScreenshot(copyToClipboard) { screenshotOverlay.start(copyToClipboard) }
+    function toggleGlobalMedia() {
+        var audible = workspaces.audibleTabs
+        for (var i = 0; i < audible.length; ++i)
+            pauseTabMedia(audible[i].workspaceIndex, audible[i].index)
+    }
+    function activateWorkspaceTab(workspaceIndex, tabIndex) {
+        workspaces.activateTab(workspaceIndex, tabIndex)
+    }
+    function muteWorkspaceTab(workspaceIndex, tabIndex, muted) {
+        workspaces.setTabMuted(workspaceIndex, tabIndex, muted)
+    }
+    function runMediaScript(workspaceIndex, tabIndex, script) {
+        var pane = paneRep.itemAt(workspaceIndex)
+        var view = pane && pane.viewAt ? pane.viewAt(tabIndex) : null
+        if (view)
+            view.runJavaScript(script)
+    }
+    function pauseTabMedia(workspaceIndex, tabIndex) {
+        runMediaScript(workspaceIndex, tabIndex,
+            "(function(){document.querySelectorAll('video,audio').forEach(function(m){m.pause();});})();")
+    }
+    function toggleTabMedia(workspaceIndex, tabIndex) {
+        runMediaScript(workspaceIndex, tabIndex,
+            "(function(){var m=document.querySelector('video,audio');if(!m)return;if(m.paused)m.play();else m.pause();})();")
+    }
+    function openPictureInPicture() {
+        if (!activeView || atHome)
+            return
+        pipWindow.sourceUrl = activeView.url
+        pipWindow.title = activeView.title && activeView.title.length ? activeView.title : qsTr("Картинка в картинке")
+        activeView.runJavaScript("(async function(){const v=document.querySelector('video');if(v&&document.pictureInPictureEnabled){try{if(document.pictureInPictureElement){await document.exitPictureInPicture();}else{await v.requestPictureInPicture();}}catch(e){}}})();")
+        pipWindow.open()
+    }
+    function setFullScreen(on, view) {
+        if (on) {
+            fullScreenOwner = view
+            shell.fullScreen = true
+            return
         }
-
-        NavigationBar {
-            id: navBar
-            Layout.fillWidth: true
-            browser: root
-            shell: shell
+        if (!view || view === fullScreenOwner) {
+            fullScreenOwner = null
+            shell.fullScreen = false
         }
-
-        // Saved-page chips under the toolbar.
-        BookmarksBar {
-            Layout.fillWidth: true
-            onNavigate: (url) => root.navigate(url)
+    }
+    function exitFullScreen() {
+        const owner = fullScreenOwner || activeView
+        fullScreenOwner = null
+        shell.fullScreen = false
+        if (owner)
+            owner.triggerWebAction(WebEngineView.ExitFullScreen)
+    }
+    function handleDownload(download) {
+        var name = download.downloadFileName && download.downloadFileName.length > 0
+                ? download.downloadFileName : download.suggestedFileName
+        if (AppSettings.askDownloadLocation) {
+            shell.pendingDownload = download
+            shell.activeOverlay = "downloadPrompt"
+            return
         }
-
-        // In-page search (Ctrl+F) — collapses to 0 height when inactive.
-        FindBar {
-            id: findBar
-            Layout.fillWidth: true
-            view: root.activeView
-            active: shell.showFind
-            onClosed: shell.showFind = false
-        }
-
-        // Site permission prompt — chrome-level so it renders above web content.
-        PermissionBar {
-            Layout.fillWidth: true
-            permission: shell.pendingPermission
-            onDecided: shell.pendingPermission = null
-        }
+        DownloadModel.acceptDownload(download, AppSettings.downloadPath, name, root.privateMode)
+        shell.activePanel = "downloads"
     }
 
     // ===== Body: sidebar (vertical mode) + web content =====
     Item {
         id: body
-        anchors {
-            top: shell.fullScreen ? parent.top : chrome.bottom
-            left: parent.left; right: parent.right; bottom: parent.bottom
-        }
+        anchors.fill: parent
 
-        // Vertical sidebar: workspace switcher on top, tabs below.
+        // Content rail — shown only in the side-tabs layout. In the top-tabs
+        // layout it collapses to zero so the page bar + tab strip own the chrome
+        // (workspaces move into the tab strip), Chrome-style.
         Item {
             id: sidebar
             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-            width: (root.verticalTabs && !shell.fullScreen) ? root.sidebarWidth : 0
+            width: (!shell.fullScreen && root.verticalTabs) ? root.sidebarWidth : 0
             visible: width > 0
             clip: true
             Behavior on width { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
 
-            // Faint tint + right hairline set the tab column apart from content.
-            Rectangle {
+            PremiumSidebar {
+                id: premiumSidebar
                 anchors.fill: parent
-                color: Theme.glassLow
-                Rectangle {
-                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                    width: 1
-                    color: Theme.glassHairline
-                }
-            }
-
-            ColumnLayout {
-                anchors.fill: parent
-                width: root.sidebarWidth     // keep content width stable while collapsing
-                spacing: 0
-
-                WorkspaceSwitcher {
-                    workspaces: workspaces
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 46
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Theme.s3
-                    Layout.rightMargin: Theme.s3
-                    Layout.preferredHeight: 1
-                    color: Theme.glassHairline
-                }
-                TabStrip {
-                    tabs: workspaces.activeTabs
-                    vertical: true
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
+                browser: root
+                shell: shell
+                workspaces: workspaces
+                windowTarget: root.windowTarget
             }
         }
 
@@ -220,12 +276,98 @@ Item {
         // translation keeps working because the view is never hidden).
         Item {
             id: content
+            // Insets are constant (driven only by fullscreen), so the page bar
+            // and tab strip never shift when navigating between the start page
+            // and a website — the chrome stays put, only the surface beneath it
+            // changes.
             anchors {
                 left: sidebar.right; right: parent.right
                 top: parent.top; bottom: parent.bottom
-                leftMargin: shell.fullScreen ? 0 : Theme.s3
-                rightMargin: shell.fullScreen ? 0 : Theme.s3
-                bottomMargin: shell.fullScreen ? 0 : Theme.s3
+                leftMargin: shell.fullScreen ? 0 : Theme.s2
+                rightMargin: shell.fullScreen ? 0 : Theme.s2
+                topMargin: shell.fullScreen ? 0 : Theme.s2
+                bottomMargin: shell.fullScreen ? 0 : Theme.s2
+            }
+
+            // Total height occupied by the page bar + (optional) top tab strip,
+            // so the web view, start page and floating bars all sit beneath them.
+            readonly property real chromeInset:
+                (pageBar.visible ? pageBar.height : 0)
+                + (topTabBar.visible ? topTabBar.height + Theme.s1 : 0)
+
+            // Page bar — navigation, address and the page-action cluster. Always
+            // present except in fullscreen, in both tab layouts.
+            // In the top-tabs layout the tab strip is the very top row and the
+            // page bar sits beneath it (Chrome/Safari order); in side-tabs the
+            // strip is hidden and the page bar owns the top.
+            GlassPanel {
+                id: topTabBar
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: 44
+                visible: !root.verticalTabs && !shell.fullScreen
+                z: 520
+                level: 1
+                fillColor: Theme.bgRaised      // opaque — no page bleed-through
+                radius: Theme.radiusMd
+                shadow: false
+
+                // Double-tap the strip to (un)maximize, mirroring the sidebar
+                // header — the frameless window has no native title bar.
+                TapHandler {
+                    gesturePolicy: TapHandler.DragThreshold
+                    onDoubleTapped: {
+                        if (!root.windowTarget)
+                            return
+                        root.windowTarget.visibility === Window.Maximized
+                            ? root.windowTarget.showNormal() : root.windowTarget.showMaximized()
+                    }
+                }
+
+                // Workspaces live here in the top-tabs layout (no sidebar), with
+                // the tab strip filling the rest of the row. Window controls move
+                // up here too, since the sidebar that normally hosts them is gone.
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.s2
+                    anchors.rightMargin: Theme.s1
+                    spacing: Theme.s2
+
+                    WindowControls {
+                        Layout.alignment: Qt.AlignVCenter
+                        target: root.windowTarget
+                    }
+                    WorkspaceSwitcher {
+                        Layout.alignment: Qt.AlignVCenter
+                        workspaces: workspaces
+                    }
+                    Rectangle {
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: 22
+                        Layout.alignment: Qt.AlignVCenter
+                        color: Theme.glassHairline
+                    }
+                    TabStrip {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        tabs: workspaces.activeTabs
+                        vertical: false
+                        onScreenshotRequested: (tabIndex) => root.screenshotTab(tabIndex)
+                    }
+                }
+            }
+
+            NavigationBar {
+                id: pageBar
+                anchors {
+                    left: parent.left; right: parent.right
+                    top: topTabBar.visible ? topTabBar.bottom : parent.top
+                    topMargin: topTabBar.visible ? Theme.s1 : 0
+                }
+                height: implicitHeight
+                visible: !shell.fullScreen
+                z: 540
+                browser: root
+                shell: shell
             }
 
             Repeater {
@@ -237,11 +379,16 @@ Item {
                     required property int index
                     required property var model
                     anchors.fill: parent
+                    anchors.topMargin: content.chromeInset + Theme.s1
                     profile: root.profile
                     tabsModel: model.tabs
+                    recordHistory: !root.privateMode
+                    defaultZoom: AppSettings.defaultZoom
                     showWeb: !root.atHome
+                    roundedWebClip: !shell.fullScreen   // rounded page card
                     onDevToolsRequested: shell.showDevTools = true
-                    onFullScreenRequested: (on) => shell.fullScreen = on
+                    onPictureInPictureRequested: root.openPictureInPicture()
+                    onFullScreenRequested: (on, view) => root.setFullScreen(on, view)
                     onPermissionRequested: (permission) => shell.pendingPermission = permission
                     opacity: index === workspaces.activeIndex ? 1 : 0
                     visible: opacity > 0.01
@@ -251,15 +398,173 @@ Item {
 
             // Start / new-tab surface — overlays the (hidden) web view at home.
             StartPage {
-                anchors.fill: parent
+                anchors {
+                    fill: parent
+                    topMargin: content.chromeInset
+                }
                 visible: root.atHome
+                privateMode: root.privateMode
+                workspaceName: workspaces.activeName
+                tabCount: workspaces.activeTabs ? workspaces.activeTabs.count : 0
                 onNavigate: (text) => root.navigate(text)
+                onOpenPanel: (panel) => shell.togglePanel(panel)
+            }
+
+            FindBar {
+                id: findBar
+                z: 500
+                anchors {
+                    top: parent.top
+                    horizontalCenter: parent.horizontalCenter
+                    topMargin: content.chromeInset + Theme.s3
+                }
+                width: Math.min(620, parent.width - Theme.s6)
+                view: root.activeView
+                active: shell.showFind
+                onClosed: shell.showFind = false
+            }
+
+            PermissionBar {
+                z: 500
+                anchors {
+                    top: findBar.active ? findBar.bottom : parent.top
+                    horizontalCenter: parent.horizontalCenter
+                    topMargin: findBar.active ? Theme.s3 : content.chromeInset + Theme.s3
+                }
+                width: Math.min(760, parent.width - Theme.s6)
+                permission: shell.pendingPermission
+                onDecided: shell.pendingPermission = null
+            }
+
+            Item {
+                id: translationWash
+                anchors.fill: parent
+                anchors.topMargin: content.chromeInset
+                visible: PageTranslator.activeJobs > 0 || PageTranslator.translating
+                opacity: visible ? 1 : 0
+                z: 430
+                Behavior on opacity { OpacityAnimator { duration: Motion.base; easing.type: Motion.standard } }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.045)
+                }
+                Rectangle {
+                    id: scanLine
+                    visible: !Motion.reducedMotion
+                    width: parent.width * 0.34
+                    height: 2
+                    radius: 1
+                    y: 0
+                    color: Theme.accent
+                    opacity: 0.75
+                    XAnimator on x {
+                        running: translationWash.visible && !Motion.reducedMotion
+                        loops: Animation.Infinite
+                        from: -scanLine.width
+                        to: translationWash.width
+                        duration: 1400
+                        easing.type: Motion.standard
+                    }
+                }
+            }
+
+            TabSearchOverlay {
+                id: tabSearchOverlay
+                anchors.fill: parent
+                workspaceModel: workspaces
+                tabModel: workspaces.activeTabs
+                currentWorkspace: workspaces.activeIndex
+                currentTabId: workspaces.activeTabs ? workspaces.activeTabs.activeIndex : -1
+                onOpenedChanged: {
+                    if (!opened && shell.activeOverlay === "tabSearch")
+                        shell.activeOverlay = ""
+                }
+                onRequestActivate: (workspaceId, tabId) => {
+                    root.activateWorkspaceTab(workspaceId, tabId)
+                    shell.closeOverlays()
+                }
+                onRequestClose: (tabId) => {
+                    workspaces.closeTab(requestedWorkspaceId, tabId)
+                }
+            }
+
+            Connections {
+                target: shell
+                function onActiveOverlayChanged() {
+                    if (shell.activeOverlay === "tabSearch")
+                        tabSearchOverlay.open()
+                    else if (tabSearchOverlay.opened)
+                        tabSearchOverlay.close()
+                }
+            }
+
+            ScreenshotOverlay {
+                id: screenshotOverlay
+                anchors.fill: parent
+                onAccepted: (selection, copyToClipboard) => root.captureArea(selection, copyToClipboard)
+                onCancelled: {}
+            }
+
+            Popup {
+                id: screenshotToast
+                property string message: ""
+                property string savedPath: ""
+                parent: Overlay.overlay
+                modal: false
+                focus: false
+                closePolicy: Popup.NoAutoClose
+                x: Math.round((parent.width - width) / 2)
+                y: parent.height - height - Theme.s6
+                padding: 0
+                implicitWidth: toastBody.implicitWidth
+                implicitHeight: toastBody.implicitHeight
+                Timer {
+                    id: toastTimer
+                    interval: 3000
+                    onTriggered: screenshotToast.close()
+                }
+                onOpened: toastTimer.restart()
+                background: Rectangle {
+                    radius: Theme.radiusPill
+                    color: Theme.bgRaised
+                    border.width: 1
+                    border.color: Theme.glassStroke
+                }
+                contentItem: RowLayout {
+                    id: toastBody
+                    spacing: Theme.s2
+                    anchors.margins: Theme.s2
+                    Icon {
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
+                        name: "check"
+                        size: 15
+                        color: Theme.positive
+                    }
+                    Text {
+                        text: screenshotToast.message
+                        color: Theme.textPrimary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm
+                    }
+                    GlassButton {
+                        visible: screenshotToast.savedPath.length > 0
+                        text: qsTr("Открыть")
+                        onClicked: ScreenshotHelper.revealFile(screenshotToast.savedPath)
+                    }
+                }
             }
         }
     }
 
+    PictureInPictureWindow {
+        id: pipWindow
+    }
+
     // ===== Slide-over panels + floating translator bar =====
     PanelHost {
+        z: 900
         browser: root
         shell: shell
     }
@@ -272,13 +577,8 @@ Item {
 
     // ===== Downloads ===== accept to the configured folder and track progress.
     Connections {
-        target: root.profile
-        function onDownloadRequested(download) {
-            download.downloadDirectory = AppSettings.downloadDir()
-            download.accept()
-            shell.downloads = [download].concat(shell.downloads)
-            shell.activePanel = "downloads"
-        }
+        target: root.handleProfileDownloads ? root.profile : null
+        function onDownloadRequested(download) { root.handleDownload(download) }
     }
 
     // ===== Developer tools ===== a detachable inspector for the active tab.

@@ -13,22 +13,42 @@ Item {
     id: root
     property var tabs                 // TabModel
     property bool vertical: true
+    signal screenshotRequested(int tabIndex)
 
     readonly property int tabH: 38
-    readonly property int tabW: 200
-    readonly property int minTabW: 40      // icon-only chip
+    readonly property int tabW: 214
+    readonly property int minTabW: 38      // icon-only chip
     readonly property int footerW: tabH + Theme.s2
 
     readonly property int tabCount: tabs ? tabs.count : 0
 
+    // Chrome-style close: while the cursor is over the horizontal strip, freeze
+    // the per-tab width to the count captured at the moment of a close, so the
+    // remaining tabs don't instantly widen mid-animation (which made them
+    // overlap). Releasing the hover lets them glide back to fill the row.
+    property int frozenCount: 0
+    function closeTabAt(index) {
+        if (!vertical)
+            frozenCount = tabCount
+        if (tabs)
+            tabs.closeTab(index)
+    }
+    readonly property int slotCount: (!vertical && stripHover.hovered && frozenCount > tabCount)
+                                     ? frozenCount : tabCount
+
+    HoverHandler {
+        id: stripHover
+        onHoveredChanged: if (!hovered) root.frozenCount = 0
+    }
+
     // Width of one horizontal tab: split the free space evenly, clamped between
     // the icon-only minimum and the comfortable maximum.
     readonly property real slotW: {
-        if (vertical || tabCount <= 0)
+        if (vertical || slotCount <= 0)
             return tabW
         var spacing = 6
-        var avail = width - footerW - Theme.s2 * 2 - spacing * tabCount
-        return Math.max(minTabW, Math.min(tabW, avail / tabCount))
+        var avail = width - footerW - Theme.s2 * 2 - spacing * slotCount
+        return Math.max(minTabW, Math.min(tabW, avail / slotCount))
     }
     // Hide the label once a tab gets too thin to read it.
     readonly property bool horizontalCompact: !vertical && slotW < 78
@@ -36,16 +56,16 @@ Item {
     ListView {
         id: list
         anchors.fill: parent
-        anchors.margins: Theme.s2
+        anchors.margins: root.vertical ? Theme.s1 : Theme.s2
         orientation: root.vertical ? ListView.Vertical : ListView.Horizontal
-        spacing: root.vertical ? 4 : 6
+        spacing: root.vertical ? 5 : 5
         clip: true
         model: root.tabs
         boundsBehavior: Flickable.StopAtBounds
 
         // Vertical sidebar can hold more tabs than fit — surface a scrollbar so
         // overflowing tabs stay reachable (the horizontal bar shrinks instead).
-        ScrollBar.vertical: ScrollBar {
+        ScrollBar.vertical: FilkaScrollBar {
             policy: (root.vertical && list.contentHeight > list.height)
                     ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
         }
@@ -76,6 +96,12 @@ Item {
             required property var model
             width: root.vertical ? list.width : root.slotW
             height: root.vertical ? root.tabH : list.height
+            // Glide horizontal tabs to their new width when the row re-flows
+            // (e.g. after the hover-freeze releases) instead of snapping.
+            Behavior on width {
+                enabled: !root.vertical
+                NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized }
+            }
             compact: root.horizontalCompact
             title: model.title
             iconUrl: model.iconUrl
@@ -87,7 +113,7 @@ Item {
             // Lift the grabbed tab above its neighbours while it's being dragged.
             z: dragH.active ? 10 : (active ? 1 : 0)
             onActivated: root.tabs.activeIndex = index
-            onClosed: root.tabs.closeTab(index)
+            onClosed: root.closeTabAt(index)
             onMuteToggled: root.tabs.setMuted(index, !model.muted)
             onContextRequested: {
                 tabMenu.tabsModel = root.tabs
@@ -154,8 +180,13 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: root.vertical ? 2 : 1
-                radius: Theme.radiusMd
-                color: addHover.hovered ? Theme.glassMed : "transparent"
+                radius: Theme.radiusSm
+                color: addHover.hovered ? Theme.hoverFill : "transparent"
+                border.width: activeFocus ? Theme.focusWidth : 0
+                border.color: Theme.focusRing
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Новая вкладка")
                 Behavior on color { ColorAnimation { duration: Motion.fast } }
 
                 Row {
@@ -172,7 +203,7 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: root.vertical
-                        text: "Новая вкладка"
+                        text: qsTr("Новая вкладка")
                         color: addHover.hovered ? Theme.textPrimary : Theme.textSecondary
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm; font.weight: Font.Medium
                     }
@@ -180,10 +211,16 @@ Item {
 
                 HoverHandler { id: addHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.tabs.addTab() }   // opens the start page
+                Keys.onReturnPressed: root.tabs.addTab()
+                Keys.onEnterPressed: root.tabs.addTab()
+                Keys.onSpacePressed: root.tabs.addTab()
             }
         }
     }
 
     // Shared right-click menu — its target index/state are set on open.
-    TabContextMenu { id: tabMenu }
+    TabContextMenu {
+        id: tabMenu
+        onScreenshotRequested: (tabIndex) => root.screenshotRequested(tabIndex)
+    }
 }

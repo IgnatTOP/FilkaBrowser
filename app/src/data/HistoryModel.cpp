@@ -14,12 +14,26 @@ HistoryModel::HistoryModel(QObject *parent) : QAbstractListModel(parent)
     load();
 }
 
+HistoryModel::~HistoryModel()
+{
+    if (m_connectionName.isEmpty())
+        return;
+    const QString connectionName = m_connectionName;
+    m_db = QSqlDatabase();
+    QSqlDatabase::removeDatabase(connectionName);
+}
+
 void HistoryModel::openDatabase()
 {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dir);
+    if (!QDir().mkpath(dir)) {
+        qWarning("Filka: could not create history database directory: %s", qPrintable(dir));
+        return;
+    }
 
-    m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("filka_history"));
+    m_connectionName = QStringLiteral("filka_history_%1")
+        .arg(reinterpret_cast<quintptr>(this), 0, 16);
+    m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connectionName);
     m_db.setDatabaseName(dir + QStringLiteral("/history.db"));
     if (!m_db.open()) {
         qWarning("Filka: could not open history database: %s",
@@ -28,12 +42,15 @@ void HistoryModel::openDatabase()
     }
 
     QSqlQuery q(m_db);
-    q.exec(QStringLiteral(
+    if (!q.exec(QStringLiteral(
         "CREATE TABLE IF NOT EXISTS history ("
         "  url        TEXT PRIMARY KEY,"
         "  title      TEXT,"
         "  last_visit INTEGER NOT NULL,"
-        "  visits     INTEGER NOT NULL DEFAULT 1)"));
+        "  visits     INTEGER NOT NULL DEFAULT 1)"))) {
+        qWarning("Filka: could not create history table: %s",
+                 qPrintable(q.lastError().text()));
+    }
 }
 
 void HistoryModel::load()
@@ -42,8 +59,11 @@ void HistoryModel::load()
         return;
 
     QSqlQuery q(m_db);
-    q.exec(QStringLiteral(
-        "SELECT url, title, last_visit, visits FROM history ORDER BY last_visit DESC"));
+    if (!q.exec(QStringLiteral(
+        "SELECT url, title, last_visit, visits FROM history ORDER BY last_visit DESC"))) {
+        qWarning("Filka: could not load history: %s", qPrintable(q.lastError().text()));
+        return;
+    }
     while (q.next()) {
         Entry e;
         e.url = q.value(0).toString();
@@ -69,18 +89,19 @@ QVariant HistoryModel::data(const QModelIndex &index, int role) const
     case UrlRole:        return e.url;
     case LastVisitRole:  return e.lastVisit;
     case VisitCountRole: return e.visitCount;
-    default:             return {};
     }
+    return {};
 }
 
 QHash<int, QByteArray> HistoryModel::roleNames() const
 {
-    return {
+    static const QHash<int, QByteArray> roles = {
         {TitleRole, "title"},
         {UrlRole, "url"},
         {LastVisitRole, "lastVisit"},
         {VisitCountRole, "visitCount"},
     };
+    return roles;
 }
 
 int HistoryModel::indexOfUrl(const QString &url) const
@@ -99,21 +120,24 @@ void HistoryModel::recordVisit(const QUrl &url, const QString &title)
         return;
 
     const QString key = url.toString();
-    const QDateTime now = QDateTime::currentDateTime();
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    QString effectiveTitle = title;
 
     const int existing = indexOfUrl(key);
     if (existing >= 0) {
-        Entry e = m_entries.takeAt(existing);
-        if (existing != 0)
+        if (existing != 0) {
             beginMoveRows({}, existing, existing, {}, 0);
+            m_entries.move(existing, 0);
+            endMoveRows();
+        }
+
+        Entry &e = m_entries[0];
         e.lastVisit = now;
         e.visitCount += 1;
         if (!title.isEmpty())
             e.title = title;
-        m_entries.prepend(e);
-        if (existing != 0)
-            endMoveRows();
-        emit dataChanged(index(0), index(0));
+        effectiveTitle = e.title;
+        emit dataChanged(index(0), index(0), {TitleRole, LastVisitRole, VisitCountRole});
     } else {
         beginInsertRows({}, 0, 0);
         Entry e;
@@ -123,6 +147,7 @@ void HistoryModel::recordVisit(const QUrl &url, const QString &title)
         m_entries.prepend(e);
         endInsertRows();
         emit countChanged();
+        effectiveTitle = e.title;
     }
 
     if (m_db.isOpen()) {
@@ -132,9 +157,12 @@ void HistoryModel::recordVisit(const QUrl &url, const QString &title)
             "ON CONFLICT(url) DO UPDATE SET "
             "  title = excluded.title, last_visit = excluded.last_visit, visits = visits + 1"));
         q.addBindValue(key);
-        q.addBindValue(title);
+        q.addBindValue(effectiveTitle);
         q.addBindValue(now.toMSecsSinceEpoch());
-        q.exec();
+        if (!q.exec()) {
+            qWarning("Filka: could not persist history visit: %s",
+                     qPrintable(q.lastError().text()));
+        }
     }
 }
 
@@ -168,6 +196,25 @@ QVariantList HistoryModel::search(const QString &query, int limit) const
     return out;
 }
 
+QVariantList HistoryModel::recent(int limit) const
+{
+    QVariantList out;
+    if (limit <= 0)
+        return out;
+
+    for (const Entry &e : m_entries) {
+        if (out.size() >= limit)
+            break;
+        out.append(QVariantMap{
+            {QStringLiteral("title"), e.title.isEmpty() ? e.url : e.title},
+            {QStringLiteral("url"), e.url},
+            {QStringLiteral("lastVisit"), e.lastVisit},
+            {QStringLiteral("visitCount"), e.visitCount},
+        });
+    }
+    return out;
+}
+
 void HistoryModel::removeEntry(int index)
 {
     if (index < 0 || index >= int(m_entries.size()))
@@ -183,7 +230,10 @@ void HistoryModel::removeEntry(int index)
         QSqlQuery q(m_db);
         q.prepare(QStringLiteral("DELETE FROM history WHERE url = ?"));
         q.addBindValue(key);
-        q.exec();
+        if (!q.exec()) {
+            qWarning("Filka: could not remove history entry: %s",
+                     qPrintable(q.lastError().text()));
+        }
     }
 }
 
@@ -199,6 +249,9 @@ void HistoryModel::clear()
 
     if (m_db.isOpen()) {
         QSqlQuery q(m_db);
-        q.exec(QStringLiteral("DELETE FROM history"));
+        if (!q.exec(QStringLiteral("DELETE FROM history"))) {
+            qWarning("Filka: could not clear history: %s",
+                     qPrintable(q.lastError().text()));
+        }
     }
 }

@@ -10,6 +10,8 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QSettings>
@@ -29,12 +31,12 @@ class PageTranslator : public QObject
     Q_PROPERTY(QString sourcePreview READ sourcePreview WRITE setSourcePreview NOTIFY sourcePreviewChanged)
     Q_PROPERTY(QString sourceLanguage READ sourceLanguage WRITE setSourceLanguage NOTIFY sourceLanguageChanged)
     Q_PROPERTY(QString targetLanguage READ targetLanguage WRITE setTargetLanguage NOTIFY targetLanguageChanged)
-    Q_PROPERTY(QString apiKey READ apiKey WRITE setApiKey NOTIFY apiKeyChanged)
     Q_PROPERTY(bool hasApiKey READ hasApiKey NOTIFY apiKeyChanged)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(QString cachedText READ cachedText NOTIFY cachedTextChanged)
     Q_PROPERTY(QString cachedTitle READ cachedTitle NOTIFY cachedTitleChanged)
     Q_PROPERTY(QString cachedUrl READ cachedUrl NOTIFY cachedUrlChanged)
+    Q_PROPERTY(int activeJobs READ activeJobs NOTIFY activeJobsChanged)
 
 public:
     explicit PageTranslator(QObject *parent = nullptr);
@@ -51,8 +53,6 @@ public:
     QString targetLanguage() const { return m_targetLanguage; }
     void setTargetLanguage(const QString &lang);
 
-    QString apiKey() const { return m_apiKey; }
-    void setApiKey(const QString &key);
     bool hasApiKey() const { return !m_apiKey.isEmpty(); }
 
     QString error() const { return m_error; }
@@ -60,6 +60,7 @@ public:
     QString cachedText() const { return m_cachedText; }
     QString cachedTitle() const { return m_cachedTitle; }
     QString cachedUrl() const { return m_cachedUrl; }
+    int activeJobs() const { return m_batchJobs.size() + (m_reply ? 1 : 0); }
 
     // Store pre-extracted page text (called from BrowserView before panel opens).
     Q_INVOKABLE void setCachedText(const QString &text, const QString &title, const QString &url);
@@ -69,6 +70,9 @@ public:
     Q_INVOKABLE void translateText(const QString &pageText, const QString &pageTitle);
     // Batch translate (non-streaming) for in-page injection. Emits batchReady().
     Q_INVOKABLE void translateBatch(const QString &markedText);
+    Q_INVOKABLE void translateBatchJob(const QString &ownerId, int jobId, const QString &markedText);
+    Q_INVOKABLE void setApiKey(const QString &key);
+    Q_INVOKABLE void clearApiKey();
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void clear();
     Q_INVOKABLE void copyToClipboard(const QString &text) const;
@@ -84,8 +88,11 @@ signals:
     void cachedTextChanged();
     void cachedTitleChanged();
     void cachedUrlChanged();
+    void activeJobsChanged();
     void chunkReceived(const QString &chunk);
     void batchReady(const QString &result);
+    void batchJobReady(const QString &ownerId, int jobId, const QString &result);
+    void batchJobFailed(const QString &ownerId, int jobId, const QString &error);
 
 private:
     QNetworkAccessManager m_nam;
@@ -106,11 +113,23 @@ private:
     QByteArray m_sseBuffer;
     QString m_batchResult;
     bool m_batchMode = false;
+    struct BatchJob {
+        QString ownerId;
+        int id = -1;
+        QByteArray buffer;
+        QString result;
+    };
+    QHash<QNetworkReply *, BatchJob> m_batchJobs;
 
     void startStreamRequest(const QString &content, const QString &pageTitle);
     void startBatchRequest(const QString &content);
+    void startBatchJobRequest(const QString &ownerId, int jobId, const QString &content);
     void processSSEBuffer();
+    void processBatchSSEBuffer(QNetworkReply *reply);
+    QNetworkRequest makeRequest() const;
+    QJsonObject batchRequestBody(const QString &content) const;
     void onReplyFinished();
+    void onBatchJobFinished(QNetworkReply *reply);
     void setTranslating(bool value);
     void setError(const QString &msg);
     QString systemPrompt() const;

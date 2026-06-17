@@ -9,21 +9,25 @@ Item {
 
     property bool open: false
     property string title: ""
+    property bool large: false
+    property bool centered: false
+    property real preferredWidth: 460
     signal requestClose()
     default property alias content: bodyArea.data
 
     anchors.fill: parent
     z: 200
-    visible: open || panelWrap.x < root.width   // stay mounted during the close slide
+    visible: root.centered ? (open || panelWrap.opacity > 0.01)
+                           : (open || panelWrap.x < root.width)
     focus: open
 
     // Dimming scrim — click anywhere outside the panel to dismiss.
     Rectangle {
-        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-        width: Math.min(root.width, Math.max(0, panelWrap.x))
+        anchors.fill: parent
         color: "black"
-        opacity: root.open ? (Theme.dark ? 0.42 : 0.24) : 0
-        visible: opacity > 0.001 && width > 0
+        opacity: root.open ? (root.centered ? (Theme.dark ? 0.46 : 0.26)
+                                            : (Theme.dark ? 0.28 : 0.16)) : 0
+        visible: opacity > 0.001
         Behavior on opacity { NumberAnimation { duration: Motion.base; easing.type: Motion.standard } }
         TapHandler { onTapped: root.requestClose() }
     }
@@ -31,24 +35,37 @@ Item {
     // The drawer itself (no horizontal anchor so x can be animated).
     Item {
         id: panelWrap
-        width: Math.min(500, Math.max(320, root.width - Theme.s5))
-        anchors { top: parent.top; bottom: parent.bottom
-                  topMargin: Theme.s3; bottomMargin: Theme.s3 }
-        x: root.open ? (root.width - width - Theme.s3) : (root.width + Theme.s4)
+        width: root.centered
+               ? Math.min(1080, Math.max(760, root.width - Theme.s7 * 2))
+               : root.large
+                 ? Math.min(Math.max(760, root.width * 0.72), root.width - Theme.s6)
+               : Math.min(root.preferredWidth, Math.max(320, root.width - Theme.s5))
+        height: root.centered ? Math.min(760, root.height - Theme.s7)
+                              : root.height - Theme.s6
+        y: root.centered ? Math.round((root.height - height) / 2) : Theme.s3
+        x: root.open
+           ? (root.centered ? Math.round((root.width - width) / 2)
+                            : root.width - width - Theme.s3)
+           : (root.centered ? Math.round((root.width - width) / 2)
+                            : root.width + Theme.s4)
+        opacity: root.open ? 1 : 0
+        scale: root.centered ? (root.open ? 1 : 0.985) : 1
         Behavior on x { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
+        Behavior on opacity { OpacityAnimator { duration: Motion.base; easing.type: Motion.standard } }
+        Behavior on scale { ScaleAnimator { duration: Motion.base; easing.type: Motion.emphasized } }
 
         GlassPanel {
             anchors.fill: parent
             level: 2
-            radius: Theme.radiusLg
+            radius: root.centered ? Theme.radiusXl : Theme.radiusMd
 
             // Opaque base so panel content stays readable over busy page chrome
             // (the glass fill alone is too translucent for dense text/lists).
             Rectangle {
                 anchors.fill: parent
-                radius: Theme.radiusLg
+                radius: root.centered ? Theme.radiusXl : Theme.radiusMd
                 color: Theme.surface
-                opacity: Theme.dark ? 0.98 : 0.96
+                opacity: 1
             }
 
             // Header: title + close button.
@@ -56,7 +73,7 @@ Item {
                 id: header
                 anchors { top: parent.top; left: parent.left; right: parent.right }
                 anchors.margins: Theme.s2
-                height: 48
+                height: 44
 
                 Text {
                     anchors { left: parent.left; leftMargin: Theme.s3; verticalCenter: parent.verticalCenter }

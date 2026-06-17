@@ -23,13 +23,14 @@ class BookmarkModel : public QAbstractListModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
-    enum Roles {
+    enum Roles : int {
         TitleRole = Qt::UserRole + 1,
         UrlRole,
     };
     Q_ENUM(Roles)
 
     explicit BookmarkModel(QObject *parent = nullptr);
+    ~BookmarkModel() override;
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -63,8 +64,10 @@ private:
 
     QList<Entry> m_entries;   // most-recent first
     QSqlDatabase m_db;
+    QString m_connectionName;
 
     void openDatabase();
     void load();
     int indexOfUrl(const QString &url) const;
+    static bool isWebUrl(const QUrl &url);
 };

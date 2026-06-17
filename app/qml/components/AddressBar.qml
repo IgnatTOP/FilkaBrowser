@@ -14,6 +14,7 @@ FocusScope {
     property bool loading: false
     property real progress: 0          // 0..1
     signal navigate(string text)       // emitted with raw user text
+    signal securityClicked()
 
     implicitHeight: Theme.controlMd
     activeFocusOnTab: true
@@ -85,7 +86,8 @@ FocusScope {
 
         // Web autocomplete phrases — only when they still match the typed text
         // and the input isn't itself a URL. Each becomes a search action.
-        if (!root.looksLikeUrl(t) && root.netQuery === t.toLowerCase()) {
+        if (AppSettings.networkSuggestionsEnabled && !root.looksLikeUrl(t)
+                && root.netQuery === t.toLowerCase()) {
             var seenPhrase = {}
             seenPhrase[t.toLowerCase()] = true
             for (var k = 0; k < root.netPhrases.length && out.length < 9; ++k) {
@@ -111,7 +113,7 @@ FocusScope {
     }
 
     function fetchSuggestions(t) {
-        if (t.length < 2 || root.looksLikeUrl(t))
+        if (!AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
             return
         var req = new XMLHttpRequest()
         // Google's "firefox" client returns clean JSON: ["query", ["s1","s2",...]].
@@ -160,25 +162,30 @@ FocusScope {
     Rectangle {
         id: pill
         anchors.fill: parent
-        radius: Theme.radiusPill
-        color: field.activeFocus ? Theme.glassHigh : Theme.glassLow
+        radius: Theme.radiusMd
+        color: field.activeFocus ? Theme.surface : Theme.surfaceAlt
         border.width: 1
-        border.color: field.activeFocus ? Theme.accent : Theme.glassStroke
+        border.color: field.activeFocus ? Theme.accent : Theme.outline
         Behavior on color { ColorAnimation { duration: Motion.fast } }
         Behavior on border.color { ColorAnimation { duration: Motion.fast } }
 
         Icon {  // security indicator
             id: lock
-            anchors { left: parent.left; leftMargin: Theme.s4; verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; leftMargin: Theme.s3; verticalCenter: parent.verticalCenter }
             name: root.secure ? "lock" : "globe"
             size: 15
             color: root.secure ? Theme.positive : Theme.textMuted
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                onTapped: root.securityClicked()
+            }
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
         }
 
         TextField {
         id: field
             anchors { left: lock.right; right: parent.right; verticalCenter: parent.verticalCenter
-                      leftMargin: Theme.s2; rightMargin: Theme.s4 }
+                      leftMargin: Theme.s2; rightMargin: Theme.s3 }
             focus: false
             text: root.displayUrl
             color: Theme.textPrimary
@@ -197,7 +204,13 @@ FocusScope {
             }
             // textEdited fires only on user input, not on the displayUrl binding,
             // so suggestions never pop up while pages navigate on their own.
-            onTextEdited: { root.rebuildSuggestions(); netDebounce.restart() }
+            onTextEdited: {
+                root.rebuildSuggestions()
+                if (AppSettings.networkSuggestionsEnabled)
+                    netDebounce.restart()
+                else
+                    netDebounce.stop()
+            }
             onAccepted: root.acceptSuggestion(root.highlight)
             Keys.onEscapePressed: {
                 if (root.suggestions.length > 0) { root.suggestions = []; root.highlight = -1 }
@@ -237,9 +250,9 @@ FocusScope {
         }
         background: Rectangle {
             radius: Theme.radiusMd
-            color: Theme.bgRaised
+            color: Theme.surface
             border.width: 1
-            border.color: Theme.glassStroke
+            border.color: Theme.outline
         }
 
         contentItem: Column {
@@ -251,10 +264,10 @@ FocusScope {
                     required property int index
                     required property var modelData
                     width: parent ? parent.width : 0
-                    height: 40
+                    height: 38
                     radius: Theme.radiusSm
                     color: (srow.index === root.highlight || rowHover.hovered)
-                           ? Theme.accentSoft : "transparent"
+                           ? Theme.activeFill : "transparent"
 
                     Icon {
                         id: kindIcon

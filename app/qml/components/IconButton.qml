@@ -9,15 +9,19 @@ Button {
 
     property string iconName: ""
     property color iconColor: Theme.textSecondary
-    property color hoverColor: Theme.glassMed
+    property color hoverColor: Theme.hoverFill
     property real size: Theme.controlMd
     property real iconSize: Math.round(size * 0.52)
     property bool active: false
+    property string tooltip: Accessible.name
 
     implicitWidth: size
     implicitHeight: size
     focusPolicy: Qt.TabFocus
     Accessible.role: Accessible.Button
+    ToolTip.text: tooltip
+    ToolTip.visible: enabled && hovered && tooltip.length > 0
+    ToolTip.delay: 520
 
     // Enable/disable dimming and show/hide fades glide instead of snapping.
     Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
@@ -31,8 +35,9 @@ Button {
     }
 
     background: Rectangle {
-        radius: Math.min(Theme.radiusMd, control.size / 2)
-        color: control.pressed ? Theme.glassHigh
+        radius: Theme.radiusSm
+        color: !control.enabled ? "transparent"
+             : control.pressed ? Theme.glassHigh
              : (control.hovered || control.active) ? control.hoverColor : "transparent"
         border.width: control.activeFocus ? Theme.focusWidth : (control.active ? 1 : 0)
         border.color: control.activeFocus ? Theme.focusRing : Theme.glassStroke

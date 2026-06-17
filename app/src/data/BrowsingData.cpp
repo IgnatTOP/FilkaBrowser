@@ -1,31 +1,67 @@
 #include "BrowsingData.h"
 
-#include <QWebEngineCookieStore>
-#include <QWebEngineProfile>
+#include <QDir>
 
-BrowsingData::BrowsingData(QWebEngineProfile *profile, QObject *parent)
-    : QObject(parent), m_profile(profile)
+#include <QtWebEngineCore/QWebEngineCookieStore>
+#include <QtWebEngineCore/QWebEnginePermission>
+#include <QtWebEngineQuick/QQuickWebEngineProfile>
+
+namespace {
+QQuickWebEngineProfile *asProfile(QObject *profile)
 {
+    return qobject_cast<QQuickWebEngineProfile *>(profile);
+}
 }
 
-void BrowsingData::clearCache()
+BrowsingData::BrowsingData(QObject *parent) : QObject(parent) {}
+
+void BrowsingData::clearCache(QObject *profile)
 {
-    if (m_profile)
-        m_profile->clearHttpCache();
+    if (auto *p = asProfile(profile))
+        p->clearHttpCache();
 }
 
-void BrowsingData::clearCookies()
+void BrowsingData::clearCookies(QObject *profile)
 {
-    if (!m_profile)
+    auto *p = asProfile(profile);
+    if (!p)
         return;
-    if (auto *cookies = m_profile->cookieStore())
+    if (auto *cookies = p->cookieStore())
         cookies->deleteAllCookies();
 }
 
-void BrowsingData::clearAll()
+void BrowsingData::clearPermissions(QObject *profile)
 {
-    clearCache();
-    clearCookies();
-    if (m_profile)
-        m_profile->clearAllVisitedLinks();
+    auto *p = asProfile(profile);
+    if (!p)
+        return;
+    const auto permissions = p->listAllPermissions();
+    for (const QWebEnginePermission &permission : permissions) {
+        if (permission.isValid())
+            permission.reset();
+    }
+}
+
+void BrowsingData::clearAll(QObject *profile)
+{
+    auto *p = asProfile(profile);
+    clearCache(profile);
+    clearCookies(profile);
+    clearPermissions(profile);
+    if (!p || p->isOffTheRecord())
+        return;
+
+    const QString storagePath = p->persistentStoragePath();
+    if (!storagePath.isEmpty() && QDir(storagePath).exists()
+        && !QDir(storagePath).removeRecursively()) {
+        qWarning("Filka: could not remove WebEngine storage path: %s",
+                 qPrintable(storagePath));
+    }
+
+    const QString cachePath = p->cachePath();
+    if (!cachePath.isEmpty() && QDir(cachePath).exists()
+        && !QDir(cachePath).removeRecursively()) {
+        qWarning("Filka: could not remove WebEngine cache path: %s",
+                 qPrintable(cachePath));
+    }
 }

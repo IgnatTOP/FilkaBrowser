@@ -52,7 +52,7 @@ Item {
     property string pendingInjected: ""
 
     function startInPageTranslation() {
-        if (!activeView || PageTranslator.translating || extracting) return
+        if (!activeView || !PageTranslator.hasApiKey || PageTranslator.translating || extracting) return
         extracting = true
 
         activeView.runJavaScript(jsCollect, function(json) {
@@ -180,6 +180,7 @@ Item {
         // Language selector
         Pill {
             anchors.verticalCenter: parent.verticalCenter
+            accessibleName: qsTr("Выбрать язык перевода")
             onClicked: langPopup.visible = !langPopup.visible
             Row {
                 spacing: Theme.s1
@@ -210,7 +211,7 @@ Item {
                     width: 5; height: 5; radius: 2.5; color: Theme.accent
                     anchors.verticalCenter: parent.verticalCenter
                     SequentialAnimation on opacity {
-                        running: PageTranslator.translating || root.extracting
+                        running: (PageTranslator.translating || root.extracting) && !Motion.reducedMotion
                         loops: Animation.Infinite
                         PauseAnimation { duration: index * 140 }
                         NumberAnimation { to: 0.3; duration: 250 }
@@ -220,25 +221,47 @@ Item {
                 }
             }
             // Tap to cancel
-            Item { width: 16; height: 16
-                TapHandler { onTapped: PageTranslator.cancel() }
+            IconButton {
+                width: 22
+                height: 22
+                iconName: "x"
+                iconSize: 12
+                Accessible.name: qsTr("Отменить перевод")
+                onClicked: PageTranslator.cancel()
+            }
+        }
+
+        Row {
+            visible: !PageTranslator.hasApiKey
+            spacing: Theme.s1
+            Icon {
+                anchors.verticalCenter: parent.verticalCenter
+                name: "shield"; size: 12; color: Theme.warning
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Нужен API-ключ")
+                color: Theme.warning
+                font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs; font.weight: Font.Medium
             }
         }
 
         // Translate button
         Pill {
             anchors.verticalCenter: parent.verticalCenter
-            visible: !PageTranslator.translating && !root.extracting && !root.pageTranslated
+            accessibleName: qsTr("Перевести страницу")
+            visible: PageTranslator.hasApiKey && !PageTranslator.translating
+                     && !root.extracting && !root.pageTranslated
             strokeWidth: 0
             fillColor: Theme.accent
             onClicked: root.startInPageTranslation()
             Row {
                 spacing: Theme.s1
-                Icon { anchors.verticalCenter: parent.verticalCenter; name: "languages"; size: 12; color: "white" }
+                Icon { anchors.verticalCenter: parent.verticalCenter; name: "languages"; size: 12; color: Theme.accentForeground }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("Перевести")
-                    color: "white"
+                    color: Theme.accentForeground
                     font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs; font.weight: Font.DemiBold
                 }
             }
@@ -261,6 +284,7 @@ Item {
         Pill {
             id: revertPill
             anchors.verticalCenter: parent.verticalCenter
+            accessibleName: qsTr("Вернуть оригинал страницы")
             visible: root.pageTranslated && !PageTranslator.translating && !root.extracting
             fillColor: hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.16)
                                : Theme.glassLow

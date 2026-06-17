@@ -12,6 +12,7 @@ Menu {
     property int tabIndex: -1
     property bool tabPinned: false
     property bool tabMuted: false
+    signal screenshotRequested(int tabIndex)
 
     width: 230
     padding: 6
@@ -28,7 +29,7 @@ Menu {
     background: Rectangle {
         implicitWidth: 230
         radius: Theme.radiusMd
-        color: Theme.bgRaised
+        color: Theme.modalSurface
         border.width: 1
         border.color: Theme.glassStroke
     }
@@ -73,6 +74,10 @@ Menu {
     MItem {
         text: menu.tabMuted ? qsTr("Включить звук") : qsTr("Выключить звук")
         onTriggered: if (menu.tabsModel) menu.tabsModel.setMuted(menu.tabIndex, !menu.tabMuted)
+    }
+    MItem {
+        text: qsTr("Скриншот вкладки")
+        onTriggered: menu.screenshotRequested(menu.tabIndex)
     }
 
     MSep {}

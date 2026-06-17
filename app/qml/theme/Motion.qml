@@ -5,12 +5,14 @@ import QtQuick
 // every transition feels like the same product. Durations are tuned to stay
 // smooth from 60Hz up to 240Hz (frame-independent, GPU-driven).
 QtObject {
+    property bool reducedMotion: false
+
     // Durations (ms)
-    readonly property int instant: 90
-    readonly property int fast:    150
-    readonly property int base:    220
-    readonly property int slow:    340
-    readonly property int xslow:   520
+    readonly property int instant: reducedMotion ? 0 : 90
+    readonly property int fast:    reducedMotion ? 0 : 150
+    readonly property int base:    reducedMotion ? 0 : 220
+    readonly property int slow:    reducedMotion ? 0 : 340
+    readonly property int xslow:   reducedMotion ? 0 : 520
 
     // Easing curves — expressive but never bouncy enough to feel cheap.
     readonly property int standard:   Easing.OutCubic

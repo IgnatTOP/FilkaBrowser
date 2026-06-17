@@ -1,33 +1,39 @@
-# Filka Design System — Liquid Glass
+# Filka Design System — Desktop Browser Chrome
 
 Source of truth lives in QML singletons: `app/qml/theme/Theme.qml` (color,
 shape, type, depth) and `app/qml/theme/Motion.qml` (timing, easing).
 
 ## Palette
 
-**Neutrals:** Graphite Black `#0B0D10` · Deep Space Gray `#15181D` ·
-Titanium `#2A2F37` · Frost White `#F4F7FB`.
+Filka now uses restrained graphite/light browser surfaces instead of a heavy
+decorative glass theme. The goal is daily-use clarity: calm chrome, readable
+panels, compact controls and one clear accent color.
 
-**Accents:** Electric Blue `#2E7CF6` · Aurora Purple `#8B5CF6` · Cyan `#22D3EE`.
-The three form the **aurora gradient** used for the wordmark, focus rings and
-AI/VPN flair.
+**Neutrals:** Obsidian `#0D1016`, Plum Gray `#171B22`, Titanium `#2A3039`,
+Frost White `#F7F8FA`.
 
-## Glass surfaces
+**Accent:** Coral `#FF6A4D` by default, user-selectable in settings. Accent is
+reserved for focus, selected state, primary actions and security/status cues.
 
-Translucent fills (`glassLow/Med/High`) over an animated aurora backdrop create
-depth. Each `GlassPanel` adds a top inner highlight + soft drop shadow. For MVP
-we use **in-app layer blur** (portable); native backdrop acrylic is M7.
+## Surfaces
+
+Use semantic tokens (`chrome`, `sidebar`, `surface`, `surfaceAlt`, `card`,
+`hoverFill`, `activeFill`, `outline`) instead of raw colors. Translucent glass
+tokens still exist for legacy components, but new UI should prefer opaque
+surfaces unless translucency improves hierarchy.
 
 ## Shape & spacing
 
-Radii: 8 / 14 / 20 / 28 / pill. Spacing on a 4pt grid (4/8/12/16/24/32).
+Radii: 8 / 10 / 14 / 18 / pill. Spacing stays on a 4pt grid
+(4/8/12/16/24/32/40). Browser chrome should remain dense and scannable.
 
 ## Motion
 
-Durations 90–520ms, easing OutCubic/OutQuint, frame-independent so it stays
-smooth at 60/120/144/240Hz. Panels enter with a slight overshoot.
+Durations are 90–340ms for normal UI. `Motion.reducedMotion` must gate
+decorative movement. Prefer opacity/transform animation; avoid relayout-heavy
+width/height animation except for small chrome controls.
 
 ## Themes
 
 `Theme.dark` toggles Light/Dark; all semantic tokens resolve per mode. Both
-themes must keep AA text contrast over glass.
+themes must keep AA text contrast and visible focus rings.

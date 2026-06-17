@@ -1,20 +1,36 @@
 #include "UpdateChecker.h"
 
+#include <chrono>
+
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QSettings>
+#include <QSslError>
+#include <QStringList>
 #include <QVersionNumber>
 
 static const QString kRepoApiUrl =
     QStringLiteral("https://api.github.com/repos/IgnatTOP/FilkaBrowser/releases/latest");
+static constexpr auto kTransferTimeout = std::chrono::milliseconds(30000);
 
 UpdateChecker::UpdateChecker(QObject *parent)
     : QObject(parent)
 {
+    connect(&m_nam, &QNetworkAccessManager::sslErrors, this,
+            [this](QNetworkReply *reply, const QList<QSslError> &errors) {
+        QStringList messages;
+        for (const QSslError &error : errors)
+            messages.append(error.errorString());
+        setLastError(QStringLiteral("Ошибка TLS: %1").arg(messages.join(QStringLiteral("; "))));
+        if (reply)
+            reply->abort();
+    });
+
     m_dismissed = m_store.value(QStringLiteral("updates/dismissed"), false).toBool();
 }
 
@@ -40,8 +56,10 @@ void UpdateChecker::checkForUpdates()
 
     setChecking(true);
     setUpToDate(false);
+    setLastError(QString());
 
     QNetworkRequest request{QUrl(kRepoApiUrl)};
+    request.setTransferTimeout(kTransferTimeout);
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
 
@@ -50,17 +68,25 @@ void UpdateChecker::checkForUpdates()
         reply->deleteLater();
         setChecking(false);
 
-        if (reply->error() != QNetworkReply::NoError)
+        if (reply->error() != QNetworkReply::NoError) {
+            if (m_lastError.isEmpty())
+                setLastError(reply->errorString());
             return;
+        }
 
-        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-        if (!doc.isObject())
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseError);
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            setLastError(QStringLiteral("Некорректный ответ сервера обновлений."));
             return;
+        }
 
         QJsonObject release = doc.object();
         QString tagName = release.value(QStringLiteral("tag_name")).toString();
-        if (tagName.isEmpty())
+        if (tagName.isEmpty()) {
+            setLastError(QStringLiteral("В ответе обновлений нет версии релиза."));
             return;
+        }
 
         // Strip leading 'v' if present (v0.2.0 -> 0.2.0)
         if (tagName.startsWith('v'))
@@ -89,6 +115,11 @@ void UpdateChecker::checkForUpdates()
         // If no asset matches, link to the release page itself.
         if (assetUrl.isEmpty())
             assetUrl = release.value(QStringLiteral("html_url")).toString();
+        const QUrl asset(assetUrl);
+        if (!asset.isValid() || asset.scheme() != QLatin1String("https")) {
+            setLastError(QStringLiteral("В ответе обновлений некорректная ссылка загрузки."));
+            return;
+        }
 
         QString notes = release.value(QStringLiteral("body")).toString();
 
@@ -104,8 +135,9 @@ void UpdateChecker::checkForUpdates()
 
 void UpdateChecker::openDownload()
 {
-    if (!m_downloadUrl.isEmpty())
-        QDesktopServices::openUrl(QUrl(m_downloadUrl));
+    const QUrl url(m_downloadUrl);
+    if (url.isValid() && url.scheme() == QLatin1String("https"))
+        QDesktopServices::openUrl(url);
 }
 
 void UpdateChecker::setChecking(bool value)
@@ -154,6 +186,14 @@ void UpdateChecker::setReleaseNotes(const QString &notes)
         return;
     m_releaseNotes = notes;
     emit releaseNotesChanged();
+}
+
+void UpdateChecker::setLastError(const QString &error)
+{
+    if (m_lastError == error)
+        return;
+    m_lastError = error;
+    emit lastErrorChanged();
 }
 
 bool UpdateChecker::versionIsNewer(const QString &current, const QString &latest)

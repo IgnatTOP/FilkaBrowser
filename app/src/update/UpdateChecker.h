@@ -20,6 +20,7 @@ class UpdateChecker : public QObject
     Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
     Q_PROPERTY(QString downloadUrl READ downloadUrl NOTIFY downloadUrlChanged)
     Q_PROPERTY(QString releaseNotes READ releaseNotes NOTIFY releaseNotesChanged)
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(bool dismissed READ dismissed WRITE setDismissed NOTIFY dismissedChanged)
     // True once a check completes and the installed build is already current.
     Q_PROPERTY(bool upToDate READ upToDate NOTIFY upToDateChanged)
@@ -33,6 +34,7 @@ public:
     QString currentVersion() const;
     QString downloadUrl() const { return m_downloadUrl; }
     QString releaseNotes() const { return m_releaseNotes; }
+    QString lastError() const { return m_lastError; }
     bool dismissed() const { return m_dismissed; }
     void setDismissed(bool value);
     bool upToDate() const { return m_upToDate; }
@@ -46,6 +48,7 @@ signals:
     void latestVersionChanged();
     void downloadUrlChanged();
     void releaseNotesChanged();
+    void lastErrorChanged();
     void dismissedChanged();
     void upToDateChanged();
 
@@ -57,6 +60,7 @@ private:
     QString m_latestVersion;
     QString m_downloadUrl;
     QString m_releaseNotes;
+    QString m_lastError;
     bool m_dismissed = false;
     bool m_upToDate = false;
 
@@ -66,6 +70,7 @@ private:
     void setLatestVersion(const QString &version);
     void setDownloadUrl(const QString &url);
     void setReleaseNotes(const QString &notes);
+    void setLastError(const QString &error);
 
     static bool versionIsNewer(const QString &current, const QString &latest);
     static QString platformAssetFilter();

@@ -12,8 +12,10 @@ import QtQuick
 QtObject {
     id: shell
 
-    // "" | "history" | "downloads" | "translator" | "settings"
+    // "" | "history" | "downloads" | "bookmarks" | "translator" | "settings"
     property string activePanel: ""
+    // "" | "commandPalette" | "tabSearch" | "siteInfo" | "downloadPrompt"
+    property string activeOverlay: ""
 
     // Chrome-level toggles that used to live on the BrowserView god-object.
     property bool fullScreen: false
@@ -22,9 +24,10 @@ QtObject {
 
     // Live, model-less UI state surfaced to panels.
     property var pendingPermission: null
-    property var downloads: []
+    property var pendingDownload: null
 
     readonly property bool anyPanelOpen: activePanel.length > 0
+    readonly property bool anyOverlayOpen: activeOverlay.length > 0
 
     // Open `name`, or close it if it is already the active panel (button acts as
     // a toggle). Passing "" closes whatever is open.
@@ -35,4 +38,15 @@ QtObject {
     function closePanels() { activePanel = "" }
 
     function isPanelOpen(name) { return activePanel === name }
+
+    function toggleOverlay(name) {
+        activeOverlay = (activeOverlay === name) ? "" : name
+    }
+
+    function closeOverlays() {
+        if (pendingDownload)
+            pendingDownload.cancel()
+        activeOverlay = ""
+        pendingDownload = null
+    }
 }

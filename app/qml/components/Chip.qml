@@ -23,18 +23,21 @@ Item {
     implicitHeight: Theme.controlSm
     implicitWidth: contentRow.implicitWidth + hPadding * 2
     activeFocusOnTab: true
+    opacity: enabled ? 1 : 0.46
     Accessible.role: Accessible.Button
     Accessible.name: root.label
 
     Rectangle {
         anchors.fill: parent
         radius: root.radius
-        color: root.selected ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.16)
-             : hover.hovered ? Theme.glassMed : Theme.glassLow
+        color: root.selected ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.14)
+             : hover.hovered ? Theme.hoverFill : Theme.surfaceAlt
         border.width: root.activeFocus ? Theme.focusWidth : 1
-        border.color: root.activeFocus ? Theme.focusRing : (root.selected ? root.accentColor : Theme.glassStroke)
+        border.color: root.activeFocus ? Theme.focusRing : (root.selected ? root.accentColor : Theme.outline)
+        scale: press.pressed ? 0.96 : (hover.hovered ? 1.015 : 1.0)
         Behavior on color { ColorAnimation { duration: Motion.fast } }
         Behavior on border.color { ColorAnimation { duration: Motion.fast } }
+        Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
     }
 
     Row {
@@ -60,9 +63,9 @@ Item {
         }
     }
 
-    HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: root.clicked() }
-    Keys.onReturnPressed: root.clicked()
-    Keys.onEnterPressed: root.clicked()
-    Keys.onSpacePressed: root.clicked()
+    HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.PointingHandCursor }
+    TapHandler { id: press; enabled: root.enabled; onTapped: root.clicked() }
+    Keys.onReturnPressed: if (root.enabled) root.clicked()
+    Keys.onEnterPressed: if (root.enabled) root.clicked()
+    Keys.onSpacePressed: if (root.enabled) root.clicked()
 }

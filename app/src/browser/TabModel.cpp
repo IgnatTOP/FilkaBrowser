@@ -1,5 +1,10 @@
 #include "TabModel.h"
 
+#include <algorithm>
+#include <limits>
+
+#include <QVariantMap>
+
 namespace {
 // New tabs open Filka's own start page. "about:blank" is the sentinel the QML
 // shell watches for to show the welcome/start surface instead of web content.
@@ -26,13 +31,13 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
     case PinnedRole:  return t.pinned;
     case MutedRole:   return t.muted;
     case AudibleRole: return t.audible;
-    default:          return {};
     }
+    return {};
 }
 
 QHash<int, QByteArray> TabModel::roleNames() const
 {
-    return {
+    static const QHash<int, QByteArray> roles = {
         {TitleRole, "title"},
         {UrlRole, "url"},
         {IconRole, "iconUrl"},
@@ -41,6 +46,7 @@ QHash<int, QByteArray> TabModel::roleNames() const
         {MutedRole, "muted"},
         {AudibleRole, "audible"},
     };
+    return roles;
 }
 
 void TabModel::setActiveIndex(int index)
@@ -60,6 +66,57 @@ QStringList TabModel::tabUrls() const
     return urls;
 }
 
+QVariantList TabModel::entries(const QString &query, int limit) const
+{
+    QVariantList out;
+    const QString q = query.trimmed();
+    if (limit <= 0)
+        limit = std::numeric_limits<int>::max();
+
+    for (int i = 0; i < m_tabs.size() && out.size() < limit; ++i) {
+        const TabData &tab = m_tabs.at(i);
+        const QString url = tab.url.toString();
+        const QString title = tab.title.isEmpty() ? url : tab.title;
+        if (!q.isEmpty()
+            && !title.contains(q, Qt::CaseInsensitive)
+            && !url.contains(q, Qt::CaseInsensitive)) {
+            continue;
+        }
+        out.append(QVariantMap{
+            {QStringLiteral("index"), i},
+            {QStringLiteral("title"), title},
+            {QStringLiteral("url"), url},
+            {QStringLiteral("iconUrl"), tab.icon.toString()},
+            {QStringLiteral("pinned"), tab.pinned},
+            {QStringLiteral("muted"), tab.muted},
+            {QStringLiteral("audible"), tab.audible},
+            {QStringLiteral("loading"), tab.loading},
+        });
+    }
+    return out;
+}
+
+QVariantList TabModel::audibleTabs() const
+{
+    QVariantList out;
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        const TabData &tab = m_tabs.at(i);
+        if (!tab.audible)
+            continue;
+        const QString url = tab.url.toString();
+        out.append(QVariantMap{
+            {QStringLiteral("index"), i},
+            {QStringLiteral("title"), tab.title.isEmpty() ? url : tab.title},
+            {QStringLiteral("url"), url},
+            {QStringLiteral("iconUrl"), tab.icon.toString()},
+            {QStringLiteral("muted"), tab.muted},
+            {QStringLiteral("audible"), tab.audible},
+            {QStringLiteral("active"), i == m_activeIndex},
+        });
+    }
+    return out;
+}
+
 void TabModel::restore(const QStringList &urls, int activeIndex)
 {
     if (urls.isEmpty())
@@ -71,21 +128,23 @@ void TabModel::restore(const QStringList &urls, int activeIndex)
         t.url = QUrl(u);
         m_tabs.append(t);
     }
-    m_activeIndex = qBound(0, activeIndex, int(m_tabs.size()) - 1);
+    m_activeIndex = std::clamp(activeIndex, 0, int(m_tabs.size()) - 1);
     endResetModel();
     emit countChanged();
     emit activeIndexChanged();
+    emit audibleTabsChanged();
 }
 
 int TabModel::insertTab(int row, const QUrl &url, bool activate)
 {
-    row = qBound(0, row, int(m_tabs.size()));
+    row = std::clamp(row, 0, int(m_tabs.size()));
     beginInsertRows({}, row, row);
     TabData t;
     t.url = url.isEmpty() ? kHomeUrl : url;
     m_tabs.insert(row, t);
     endInsertRows();
     emit countChanged();
+    emit audibleTabsChanged();
     emit changed();
 
     // Inserting before the active tab shifts its index by one — keep it pinned
@@ -131,6 +190,7 @@ void TabModel::removeRow(int index)
     m_tabs.removeAt(index);
     endRemoveRows();
     emit countChanged();
+    emit audibleTabsChanged();
 }
 
 void TabModel::closeTab(int index)
@@ -152,7 +212,7 @@ void TabModel::closeTab(int index)
     else if (index == m_activeIndex)
         next = m_activeIndex > 0 ? m_activeIndex - 1 : 0;
 
-    const int clamped = qBound(0, next, int(m_tabs.size()) - 1);
+    const int clamped = std::clamp(next, 0, int(m_tabs.size()) - 1);
     m_activeIndex = clamped;
     emit activeIndexChanged();
     emit changed();
@@ -222,6 +282,7 @@ void TabModel::moveTab(int from, int to)
 
     if (m_activeIndex != oldActive)
         emit activeIndexChanged();
+    emit changed();
 }
 
 void TabModel::setPinned(int index, bool pinned)
@@ -238,6 +299,8 @@ void TabModel::setMuted(int index, bool muted)
         return;
     m_tabs[index].muted = muted;
     touch(index, {MutedRole});
+    if (m_tabs[index].audible)
+        emit audibleTabsChanged();
 }
 
 void TabModel::updateAudible(int index, bool audible)
@@ -246,6 +309,7 @@ void TabModel::updateAudible(int index, bool audible)
         return;
     m_tabs[index].audible = audible;
     touch(index, {AudibleRole});
+    emit audibleTabsChanged();
 }
 
 void TabModel::updateTitle(int index, const QString &title)
@@ -254,6 +318,8 @@ void TabModel::updateTitle(int index, const QString &title)
         return;
     m_tabs[index].title = title;
     touch(index, {TitleRole});
+    if (m_tabs[index].audible)
+        emit audibleTabsChanged();
 }
 
 void TabModel::updateUrl(int index, const QUrl &url)
@@ -262,6 +328,8 @@ void TabModel::updateUrl(int index, const QUrl &url)
         return;
     m_tabs[index].url = url;
     touch(index, {UrlRole});
+    if (m_tabs[index].audible)
+        emit audibleTabsChanged();
     emit changed();
 }
 
@@ -271,6 +339,8 @@ void TabModel::updateIcon(int index, const QUrl &icon)
         return;
     m_tabs[index].icon = icon;
     touch(index, {IconRole});
+    if (m_tabs[index].audible)
+        emit audibleTabsChanged();
 }
 
 void TabModel::updateLoading(int index, bool loading)

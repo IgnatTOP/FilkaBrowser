@@ -10,15 +10,16 @@ Item {
 
     property bool interactive: true
     property bool active: false
+    property string accessibleName: ""
     property real hPadding: Theme.s3
     property real radius: Theme.radiusPill
 
     // Fill resolves against state but can be overridden (e.g. accent gradient).
     property color fillColor: active ? Theme.accentSoft
-                            : pressHandler.pressed ? Theme.glassHigh
-                            : hover.hovered ? Theme.glassMed
-                                            : Theme.glassLow
-    property color strokeColor: active ? Theme.accent : Theme.glassStroke
+                            : pressHandler.pressed ? Theme.surface
+                            : hover.hovered ? Theme.hoverFill
+                                            : Theme.surfaceAlt
+    property color strokeColor: active ? Theme.accent : Theme.outline
     property real strokeWidth: 1
 
     readonly property bool hovered: hover.hovered
@@ -29,6 +30,7 @@ Item {
     implicitWidth: slot.implicitWidth + hPadding * 2
     activeFocusOnTab: root.interactive
     Accessible.role: Accessible.Button
+    Accessible.name: root.accessibleName
 
     Rectangle {
         id: surface

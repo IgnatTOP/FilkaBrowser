@@ -1,5 +1,7 @@
 #include "PageTranslator.h"
 
+#include <chrono>
+
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QJsonArray>
@@ -7,18 +9,30 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslError>
+#include <QStringList>
 
 namespace {
 const char *kEndpoint = "https://openai.bothub.chat/v1/chat/completions";
 const char *kModel    = "gpt-oss-120b:free";
-const char *kDefaultApiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNjExZmNmLWY5OWMtNGVmZS04MWMyLTAyNjYyNDVjMGM2OSIsImlzRGV2ZWxvcGVyIjp0cnVlLCJpYXQiOjE3ODE1NTQxNDksImV4cCI6MjA5NzEzMDE0OSwianRpIjoiTUZPQTBDdl9PT2w0ZG9CcSJ9.Cd7ooATVO_faFUHheI2NRP6hLzvGyqTuLfH75e4pCFc";
 constexpr int kMaxChars = 8000;
+constexpr auto kTransferTimeout = std::chrono::milliseconds(45000);
 }
 
 PageTranslator::PageTranslator(QObject *parent) : QObject(parent)
 {
+    connect(&m_nam, &QNetworkAccessManager::sslErrors, this,
+            [this](QNetworkReply *reply, const QList<QSslError> &errors) {
+        QStringList messages;
+        for (const QSslError &error : errors)
+            messages.append(error.errorString());
+        setError(QStringLiteral("Ошибка TLS: %1").arg(messages.join(QStringLiteral("; "))));
+        if (reply)
+            reply->abort();
+    });
+
     m_apiKey = m_store.value(QStringLiteral("translator/apiKey"),
-                             QString::fromLatin1(kDefaultApiKey)).toString();
+                             QString()).toString();
     m_sourceLanguage = m_store.value(QStringLiteral("translator/sourceLang"),
                                      QStringLiteral("Автоопределение")).toString();
     m_targetLanguage = m_store.value(QStringLiteral("translator/targetLang"),
@@ -53,10 +67,22 @@ void PageTranslator::setTargetLanguage(const QString &lang)
 
 void PageTranslator::setApiKey(const QString &key)
 {
-    if (m_apiKey == key)
+    const QString cleanKey = key.trimmed();
+    if (m_apiKey == cleanKey)
         return;
-    m_apiKey = key;
-    m_store.setValue(QStringLiteral("translator/apiKey"), key);
+    m_apiKey = cleanKey;
+    m_store.setValue(QStringLiteral("translator/apiKey"), cleanKey);
+    m_store.sync();
+    emit apiKeyChanged();
+}
+
+void PageTranslator::clearApiKey()
+{
+    if (m_apiKey.isEmpty())
+        return;
+    m_apiKey.clear();
+    m_store.remove(QStringLiteral("translator/apiKey"));
+    m_store.sync();
     emit apiKeyChanged();
 }
 
@@ -161,14 +187,27 @@ void PageTranslator::translateBatch(const QString &markedText)
     startBatchRequest(trimmed);
 }
 
-void PageTranslator::startBatchRequest(const QString &content)
+void PageTranslator::translateBatchJob(const QString &ownerId, int jobId, const QString &markedText)
 {
-    QNetworkRequest req((QUrl(QString::fromLatin1(kEndpoint))));
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
-    req.setRawHeader(QByteArrayLiteral("Authorization"),
-                     QByteArrayLiteral("Bearer ") + m_apiKey.toUtf8());
-    req.setRawHeader(QByteArrayLiteral("Accept"), QByteArrayLiteral("text/event-stream"));
+    setError(QString());
 
+    const QString trimmed = markedText.trimmed();
+    if (trimmed.isEmpty()) {
+        emit batchJobFailed(ownerId, jobId, QStringLiteral("Нечего переводить — страница пустая."));
+        return;
+    }
+    if (m_apiKey.isEmpty()) {
+        const QString msg = QStringLiteral("Не указан API-ключ BotHub.");
+        setError(msg);
+        emit batchJobFailed(ownerId, jobId, msg);
+        return;
+    }
+
+    startBatchJobRequest(ownerId, jobId, trimmed);
+}
+
+QJsonObject PageTranslator::batchRequestBody(const QString &content) const
+{
     const QString sysPrompt = QStringLiteral(
         "Ты — переводчик. Переведи текст на %1. "
         "Сохрани ВСЕ маркеры [N] без изменений — они стоят перед каждым сегментом. "
@@ -180,29 +219,59 @@ void PageTranslator::startBatchRequest(const QString &content)
     QJsonObject usr{{QStringLiteral("role"), QStringLiteral("user")},
                     {QStringLiteral("content"), content}};
 
-    QJsonObject body{
+    return QJsonObject{
         {QStringLiteral("model"), QString::fromLatin1(kModel)},
         {QStringLiteral("messages"), QJsonArray{sys, usr}},
         {QStringLiteral("stream"), true},
     };
+}
 
-    m_reply = m_nam.post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
+QNetworkRequest PageTranslator::makeRequest() const
+{
+    QNetworkRequest req((QUrl(QString::fromLatin1(kEndpoint))));
+    req.setTransferTimeout(kTransferTimeout);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
+    req.setRawHeader(QByteArrayLiteral("Authorization"),
+                     QByteArrayLiteral("Bearer ") + m_apiKey.toUtf8());
+    req.setRawHeader(QByteArrayLiteral("Accept"), QByteArrayLiteral("text/event-stream"));
+    return req;
+}
+
+void PageTranslator::startBatchRequest(const QString &content)
+{
+    QNetworkRequest req = makeRequest();
+    m_reply = m_nam.post(req, QJsonDocument(batchRequestBody(content)).toJson(QJsonDocument::Compact));
     connect(m_reply, &QNetworkReply::readyRead, this, [this] {
         if (!m_reply) return;
         m_sseBuffer += m_reply->readAll();
         processSSEBuffer();
     });
     connect(m_reply, &QNetworkReply::finished, this, &PageTranslator::onReplyFinished);
+    emit activeJobsChanged();
+}
+
+void PageTranslator::startBatchJobRequest(const QString &ownerId, int jobId, const QString &content)
+{
+    QNetworkRequest req = makeRequest();
+    QNetworkReply *reply = m_nam.post(req, QJsonDocument(batchRequestBody(content)).toJson(QJsonDocument::Compact));
+    BatchJob job;
+    job.ownerId = ownerId;
+    job.id = jobId;
+    m_batchJobs.insert(reply, job);
+    setTranslating(true);
+    emit activeJobsChanged();
+
+    connect(reply, &QNetworkReply::readyRead, this, [this, reply] {
+        processBatchSSEBuffer(reply);
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        onBatchJobFinished(reply);
+    });
 }
 
 void PageTranslator::startStreamRequest(const QString &content, const QString &pageTitle)
 {
-    QNetworkRequest req((QUrl(QString::fromLatin1(kEndpoint))));
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
-    req.setRawHeader(QByteArrayLiteral("Authorization"),
-                     QByteArrayLiteral("Bearer ") + m_apiKey.toUtf8());
-    req.setRawHeader(QByteArrayLiteral("Accept"), QByteArrayLiteral("text/event-stream"));
-
+    QNetworkRequest req = makeRequest();
     QString userMsg = content;
     if (!pageTitle.isEmpty())
         userMsg = QStringLiteral("Заголовок страницы: %1\n\n%2").arg(pageTitle, content);
@@ -225,6 +294,7 @@ void PageTranslator::startStreamRequest(const QString &content, const QString &p
         processSSEBuffer();
     });
     connect(m_reply, &QNetworkReply::finished, this, &PageTranslator::onReplyFinished);
+    emit activeJobsChanged();
 }
 
 void PageTranslator::processSSEBuffer()
@@ -262,15 +332,53 @@ void PageTranslator::processSSEBuffer()
     }
 }
 
+void PageTranslator::processBatchSSEBuffer(QNetworkReply *reply)
+{
+    auto it = m_batchJobs.find(reply);
+    if (it == m_batchJobs.end())
+        return;
+
+    it->buffer += reply->readAll();
+    int idx;
+    while ((idx = it->buffer.indexOf('\n')) >= 0) {
+        QByteArray line = it->buffer.left(idx).trimmed();
+        it->buffer.remove(0, idx + 1);
+
+        if (line.isEmpty() || !line.startsWith("data:"))
+            continue;
+
+        QByteArray data = line.mid(5).trimmed();
+        if (data == "[DONE]")
+            return;
+
+        QJsonParseError perr;
+        const QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
+        if (perr.error != QJsonParseError::NoError)
+            continue;
+
+        const QJsonArray choices = doc.object().value(QStringLiteral("choices")).toArray();
+        if (choices.isEmpty())
+            continue;
+
+        const QString chunk = choices.at(0).toObject()
+                                  .value(QStringLiteral("delta")).toObject()
+                                  .value(QStringLiteral("content")).toString();
+        if (!chunk.isEmpty())
+            it->result += chunk;
+    }
+}
+
 void PageTranslator::onReplyFinished()
 {
     if (!m_reply)
         return;
 
+    QNetworkReply *reply = m_reply;
     const int status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QNetworkReply::NetworkError err = m_reply->error();
+    const bool canceled = err == QNetworkReply::OperationCanceledError;
 
-    if (err != QNetworkReply::NoError && err != QNetworkReply::OperationCanceledError) {
+    if (err != QNetworkReply::NoError && !canceled) {
         // Prefer a server-supplied message if present.
         QString msg = m_reply->errorString();
         const QByteArray rest = m_reply->readAll();
@@ -290,20 +398,73 @@ void PageTranslator::onReplyFinished()
         setError(QStringLiteral("Пустой ответ от сервиса перевода."));
     }
 
-    m_reply->deleteLater();
     m_reply = nullptr;
+    reply->deleteLater();
+    emit activeJobsChanged();
     if (m_batchMode) {
         m_batchMode = false;
-        emit batchReady(m_batchResult);
+        if (!canceled)
+            emit batchReady(m_batchResult);
     }
-    setTranslating(false);
+    setTranslating(activeJobs() > 0);
+}
+
+void PageTranslator::onBatchJobFinished(QNetworkReply *reply)
+{
+    auto it = m_batchJobs.find(reply);
+    if (it == m_batchJobs.end())
+        return;
+
+    processBatchSSEBuffer(reply);
+
+    const BatchJob job = it.value();
+    m_batchJobs.erase(it);
+
+    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QNetworkReply::NetworkError err = reply->error();
+
+    if (err == QNetworkReply::OperationCanceledError) {
+        emit batchJobFailed(job.ownerId, job.id, QStringLiteral("Перевод отменён."));
+    } else if (err != QNetworkReply::NoError) {
+        QString msg = reply->errorString();
+        const QByteArray rest = reply->readAll();
+        const QJsonObject obj = QJsonDocument::fromJson(rest).object();
+        if (obj.contains(QStringLiteral("error"))) {
+            const QJsonValue e = obj.value(QStringLiteral("error"));
+            const QString m = e.isObject() ? e.toObject().value(QStringLiteral("message")).toString()
+                                           : e.toString();
+            if (!m.isEmpty()) msg = m;
+        }
+        if (status == 429)
+            msg = QStringLiteral("Слишком много запросов. Попробуйте позже.");
+        else if (status == 401)
+            msg = QStringLiteral("Неверный API-ключ BotHub.");
+        setError(msg);
+        emit batchJobFailed(job.ownerId, job.id, msg);
+    } else if (err == QNetworkReply::NoError && job.result.isEmpty()) {
+        const QString msg = QStringLiteral("Пустой ответ от сервиса перевода.");
+        setError(msg);
+        emit batchJobFailed(job.ownerId, job.id, msg);
+    } else if (err == QNetworkReply::NoError) {
+        emit batchJobReady(job.ownerId, job.id, job.result);
+    }
+
+    reply->deleteLater();
+    emit activeJobsChanged();
+    setTranslating(activeJobs() > 0);
 }
 
 void PageTranslator::cancel()
 {
+    const bool hadMainReply = m_reply != nullptr;
     if (m_reply)
         m_reply->abort();          // triggers finished() with OperationCanceledError
-    setTranslating(false);
+    const QList<QNetworkReply *> replies = m_batchJobs.keys();
+    for (QNetworkReply *reply : replies)
+        if (reply)
+            reply->abort();
+    if (!hadMainReply && replies.isEmpty())
+        setTranslating(false);
 }
 
 void PageTranslator::clear()

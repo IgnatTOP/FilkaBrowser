@@ -24,7 +24,7 @@ class HistoryModel : public QAbstractListModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
-    enum Roles {
+    enum Roles : int {
         TitleRole = Qt::UserRole + 1,
         UrlRole,
         LastVisitRole,
@@ -33,6 +33,7 @@ public:
     Q_ENUM(Roles)
 
     explicit HistoryModel(QObject *parent = nullptr);
+    ~HistoryModel() override;
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -49,6 +50,7 @@ public:
     // Address-bar autocomplete: case-insensitive substring match on url/title,
     // ranked by visit count then recency. Returns [{title, url}] maps.
     Q_INVOKABLE QVariantList search(const QString &query, int limit = 6) const;
+    Q_INVOKABLE QVariantList recent(int limit = 3) const;
 
 signals:
     void countChanged();
@@ -63,6 +65,7 @@ private:
 
     QList<Entry> m_entries;   // most-recent first
     QSqlDatabase m_db;
+    QString m_connectionName;
 
     void openDatabase();
     void load();

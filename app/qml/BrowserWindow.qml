@@ -2,61 +2,71 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
-import QtQuick.Effects
 import QtWebEngine
 import Filka
 
-// BrowserWindow — one top-level Filka window: the frameless, translucent shell
-// with the animated "aurora glass" backdrop and a full BrowserView inside. The
-// primary window is created by Main; Ctrl+N spawns more via openNewWindow(),
-// each with its own workspaces/tabs but sharing the persistent profile.
+// BrowserWindow — one top-level Filka window: a frameless translucent shell with
+// a premium wallpaper home surface and a full BrowserView inside. Ctrl+N spawns
+// more independent windows; private windows use an off-the-record profile.
 ApplicationWindow {
     id: appWindow
+    property bool privateMode: false
+    property var sharedProfile: null
+    property var windowManager: null
+    property alias browserView: browser
+    property int visibilityBeforeFullScreen: Window.Windowed
     width: 1280
     height: 820
     minimumWidth: 880
     minimumHeight: 560
     visible: true
-    title: "Filka Browser"
+    title: privateMode ? qsTr("Приватное окно — Filka Browser") : qsTr("Filka Browser")
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
 
-    // Spawn another independent browser window (Ctrl+N / menu). The new window
-    // is created visible (its `visible: true` default), so we only need to
-    // instantiate it; it owns its own tabs/workspaces and shares the profile.
-    function openNewWindow() {
-        var comp = Qt.createComponent("qrc:/qt/qml/Filka/BrowserWindow.qml")
-        if (comp.status === Component.Error)
-            console.warn("Filka: cannot open new window:", comp.errorString())
-        else
-            comp.createObject(null)
+    function openNewWindow(privateWindow) {
+        if (windowManager)
+            windowManager.openWindow(privateWindow === true)
     }
 
-    // Persistent named profile — replaces the C++ QWebEngineProfile* context
-    // property which can't be assigned to WebEngineView.profile in Qt 6.7+.
+    onClosing: function(close) {
+        if (windowManager) {
+            close.accepted = false
+            windowManager.closeWindow(appWindow)
+        }
+    }
+
     WebEngineProfile {
-        id: filkaProfile
-        storageName: "filka"
-        persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
-        persistentPermissionsPolicy: WebEngineProfile.StoreOnDisk
-        httpCacheType: WebEngineProfile.DiskHttpCache
-        httpCacheMaximumSize: 256 * 1024 * 1024
+        id: privateProfile
+        storageName: ""
+        offTheRecord: true
+        persistentCookiesPolicy: WebEngineProfile.NoPersistentCookies
+        persistentPermissionsPolicy: WebEngineProfile.AskEveryTime
+        httpCacheType: WebEngineProfile.MemoryHttpCache
+        httpCacheMaximumSize: 0
+        downloadPath: AppSettings.downloadPath
+        httpAcceptLanguage: Qt.locale().name.replace("_", "-")
+        spellCheckEnabled: true
     }
 
     // Theme mirrors the persisted preferences; AppSettings is the source of truth.
     Component.onCompleted: {
         Theme.dark = AppSettings.darkMode
-        // One-time rebrand migration: installs that still carry the legacy
-        // electric-blue default get moved to the new signature coral so the
-        // sunset identity lands cohesively. Deliberately-chosen accents stay.
-        if (AppSettings.accentColor.toLowerCase() === "#2e7cf6")
-            AppSettings.accentColor = "#FF6A4D"
+        Motion.reducedMotion = AppSettings.reducedMotion
+        // One-time rebrand migration: legacy defaults move to the Filka violet
+        // identity. Deliberately-chosen custom accents stay as-is.
+        var accent = AppSettings.accentColor.toLowerCase()
+        if (accent === "#2e7cf6" || accent === "#ff6a4d")
+            AppSettings.accentColor = "#8B5CF6"
         Theme.accent = AppSettings.accentColor
+        AdBlockManager.attachProfile(appWindow.privateMode || !appWindow.sharedProfile
+                                     ? privateProfile : appWindow.sharedProfile)
     }
     Connections {
         target: AppSettings
         function onDarkModeChanged() { Theme.dark = AppSettings.darkMode }
         function onAccentColorChanged() { Theme.accent = AppSettings.accentColor }
+        function onReducedMotionChanged() { Motion.reducedMotion = AppSettings.reducedMotion }
     }
 
     // Outer rounded glass body.
@@ -73,70 +83,15 @@ ApplicationWindow {
         border.color: Theme.glassHairline
         Behavior on color { ColorAnimation { duration: Motion.slow; easing.type: Motion.standard } }
 
-        // ---- Animated aurora backdrop (blurred drifting accent blobs) ----
-        Item {
-            id: aurora
+        // Aurora backdrop stays on for every page (not just the start page) so
+        // the translucent sidebar/chrome keep their frosted-glass look while the
+        // rounded web card floats on top of it.
+        WallpaperBackdrop {
             anchors.fill: parent
-            // Only alive on the start page (and when the user keeps it on):
-            // while a real page is shown the web view covers it anyway, so
-            // rendering/animating it just steals GPU from scroll compositing.
-            visible: browser.atHome && AppSettings.startPageAurora
-            // Render the blurred blobs into a half-resolution cached texture.
-            // The blur is visually identical at half-res but costs ~4x less GPU
-            // each frame, so it never competes with WebEngine scroll compositing.
-            layer.enabled: true
-            layer.smooth: true
-            layer.textureSize: Qt.size(Math.ceil(body.width / 2), Math.ceil(body.height / 2))
-            layer.effect: MultiEffect {
-                blurEnabled: true
-                blur: 1.0
-                blurMax: 40
-                saturation: 0.2
-            }
-
-            Repeater {
-                model: [
-                    { c: Theme.ember,  x0: 0.12, y0: 0.10, d: 9000,  s: 0.62 },
-                    { c: Theme.coral,  x0: 0.70, y0: 0.05, d: 11000, s: 0.74 },
-                    { c: Theme.violet, x0: 0.50, y0: 0.65, d: 13000, s: 0.56 }
-                ]
-                delegate: Rectangle {
-                    id: blob
-                    required property var modelData
-                    width: body.width * modelData.s
-                    height: width
-                    radius: width / 2
-                    color: modelData.c
-                    opacity: Theme.dark ? 0.42 : 0.30
-
-                    property real baseX: body.width * modelData.x0
-                    property real baseY: body.height * modelData.y0
-                    x: baseX
-                    y: baseY
-
-                    SequentialAnimation {
-                        loops: Animation.Infinite
-                        running: aurora.visible
-                        ParallelAnimation {
-                            NumberAnimation { target: blob; property: "x"; to: blob.baseX + body.width * 0.18; duration: modelData.d; easing.type: Easing.InOutSine }
-                            NumberAnimation { target: blob; property: "y"; to: blob.baseY + body.height * 0.16; duration: modelData.d * 1.3; easing.type: Easing.InOutSine }
-                        }
-                        ParallelAnimation {
-                            NumberAnimation { target: blob; property: "x"; to: blob.baseX; duration: modelData.d; easing.type: Easing.InOutSine }
-                            NumberAnimation { target: blob; property: "y"; to: blob.baseY; duration: modelData.d * 1.3; easing.type: Easing.InOutSine }
-                        }
-                    }
-
-                    Behavior on opacity { NumberAnimation { duration: Motion.slow } }
-                }
-            }
-        }
-
-        // Darkening veil so foreground text stays readable over the aurora.
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.bgBase
-            opacity: Theme.dark ? 0.40 : 0.30
+            preset: AppSettings.wallpaperPreset
+            opacity: AppSettings.startPageAurora ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: Motion.slow; easing.type: Motion.standard } }
         }
 
         // ---- Foreground layout ----
@@ -147,17 +102,18 @@ ApplicationWindow {
             WindowChrome {
                 id: chrome
                 target: appWindow
-                visible: !browser.fullScreen
+                visible: false
                 Layout.fillWidth: true
+                Layout.preferredHeight: 0
 
                 leftContent: Row {
                     spacing: Theme.s2
                     anchors.verticalCenter: parent.verticalCenter
                     Image {
-                        width: 30; height: 30
+                        width: 24; height: 24
                         anchors.verticalCenter: parent.verticalCenter
                         source: "qrc:/qt/qml/Filka/assets/logo.png"
-                        sourceSize: Qt.size(60, 60)   // crisp on HiDPI
+                        sourceSize: Qt.size(48, 48)
                         fillMode: Image.PreserveAspectFit
                         smooth: true
                         mipmap: true
@@ -167,8 +123,27 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeXl
+                        font.pixelSize: Theme.fontSizeMd
                         font.weight: Font.DemiBold
+                    }
+                    Rectangle {
+                        visible: appWindow.privateMode
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: privateText.implicitWidth + Theme.s3
+                        height: 24
+                        radius: Theme.radiusPill
+                        color: Theme.activeFill
+                        border.width: 1
+                        border.color: Theme.accent
+                        Text {
+                            id: privateText
+                            anchors.centerIn: parent
+                            text: qsTr("Приватно")
+                            color: Theme.accent
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeXs
+                            font.weight: Font.Medium
+                        }
                     }
                 }
             }
@@ -185,12 +160,25 @@ ApplicationWindow {
             // Browsing surface (M2): navigation toolbar + Qt WebEngine view.
             BrowserView {
                 id: browser
-                profile: filkaProfile
+                profile: appWindow.privateMode || !appWindow.sharedProfile
+                         ? privateProfile : appWindow.sharedProfile
+                privateMode: appWindow.privateMode
+                handleProfileDownloads: appWindow.privateMode || !appWindow.sharedProfile
+                windowTarget: appWindow
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                onFullScreenChanged: fullScreen ? appWindow.showFullScreen()
-                                                : appWindow.showNormal()
-                onNewWindowRequested: appWindow.openNewWindow()
+                onFullScreenChanged: {
+                    if (fullScreen) {
+                        appWindow.visibilityBeforeFullScreen = appWindow.visibility
+                        appWindow.showFullScreen()
+                    } else if (appWindow.visibilityBeforeFullScreen === Window.Maximized) {
+                        appWindow.showMaximized()
+                    } else {
+                        appWindow.showNormal()
+                    }
+                }
+                onNewWindowRequested: appWindow.openNewWindow(false)
+                onNewPrivateWindowRequested: appWindow.openNewWindow(true)
             }
         }
 

@@ -1,31 +1,25 @@
-// BrowsingData — privacy actions that act on the shared WebEngine profile.
+// BrowsingData — privacy actions that act on the active QML WebEngine profile.
 //
-// QWebEngineProfile's cache/cookie/visited-link clearers aren't callable from
-// QML directly, so this thin wrapper exposes them as invokables. main.cpp
-// constructs one over the live `filka` profile and binds it as `filkaPrivacy`.
+// QML exposes WebEngineProfile.clearHttpCache(), but not the cookie store. This
+// thin wrapper receives the active QQuickWebEngineProfile from QML and clears
+// cache, cookies and persisted permissions on that same profile.
 
 #pragma once
 
 #include <QObject>
 #include <qqmlregistration.h>
 
-class QWebEngineProfile;
-
 class BrowsingData : public QObject
 {
     Q_OBJECT
-    QML_ANONYMOUS
+    QML_ELEMENT
+    QML_SINGLETON
 
 public:
-    explicit BrowsingData(QWebEngineProfile *profile, QObject *parent = nullptr);
+    explicit BrowsingData(QObject *parent = nullptr);
 
-    // Drop the on-disk HTTP cache (does not touch logins).
-    Q_INVOKABLE void clearCache();
-    // Delete all cookies + site storage — signs the user out everywhere.
-    Q_INVOKABLE void clearCookies();
-    // Cache + cookies + the visited-link colouring set.
-    Q_INVOKABLE void clearAll();
-
-private:
-    QWebEngineProfile *m_profile = nullptr;
+    Q_INVOKABLE void clearCache(QObject *profile);
+    Q_INVOKABLE void clearCookies(QObject *profile);
+    Q_INVOKABLE void clearPermissions(QObject *profile);
+    Q_INVOKABLE void clearAll(QObject *profile);
 };

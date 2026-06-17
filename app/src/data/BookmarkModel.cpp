@@ -12,12 +12,26 @@ BookmarkModel::BookmarkModel(QObject *parent) : QAbstractListModel(parent)
     load();
 }
 
+BookmarkModel::~BookmarkModel()
+{
+    if (m_connectionName.isEmpty())
+        return;
+    const QString connectionName = m_connectionName;
+    m_db = QSqlDatabase();
+    QSqlDatabase::removeDatabase(connectionName);
+}
+
 void BookmarkModel::openDatabase()
 {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dir);
+    if (!QDir().mkpath(dir)) {
+        qWarning("Filka: could not create bookmarks database directory: %s", qPrintable(dir));
+        return;
+    }
 
-    m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("filka_bookmarks"));
+    m_connectionName = QStringLiteral("filka_bookmarks_%1")
+        .arg(reinterpret_cast<quintptr>(this), 0, 16);
+    m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connectionName);
     m_db.setDatabaseName(dir + QStringLiteral("/bookmarks.db"));
     if (!m_db.open()) {
         qWarning("Filka: could not open bookmarks database: %s",
@@ -26,11 +40,14 @@ void BookmarkModel::openDatabase()
     }
 
     QSqlQuery q(m_db);
-    q.exec(QStringLiteral(
+    if (!q.exec(QStringLiteral(
         "CREATE TABLE IF NOT EXISTS bookmarks ("
         "  url   TEXT PRIMARY KEY,"
         "  title TEXT,"
-        "  added INTEGER NOT NULL)"));
+        "  added INTEGER NOT NULL)"))) {
+        qWarning("Filka: could not create bookmarks table: %s",
+                 qPrintable(q.lastError().text()));
+    }
 }
 
 void BookmarkModel::load()
@@ -39,7 +56,10 @@ void BookmarkModel::load()
         return;
 
     QSqlQuery q(m_db);
-    q.exec(QStringLiteral("SELECT url, title, added FROM bookmarks ORDER BY added DESC"));
+    if (!q.exec(QStringLiteral("SELECT url, title, added FROM bookmarks ORDER BY added DESC"))) {
+        qWarning("Filka: could not load bookmarks: %s", qPrintable(q.lastError().text()));
+        return;
+    }
     while (q.next()) {
         Entry e;
         e.url = q.value(0).toString();
@@ -62,16 +82,17 @@ QVariant BookmarkModel::data(const QModelIndex &index, int role) const
     switch (role) {
     case TitleRole: return e.title.isEmpty() ? e.url : e.title;
     case UrlRole:   return e.url;
-    default:        return {};
     }
+    return {};
 }
 
 QHash<int, QByteArray> BookmarkModel::roleNames() const
 {
-    return {
+    static const QHash<int, QByteArray> roles = {
         {TitleRole, "title"},
         {UrlRole, "url"},
     };
+    return roles;
 }
 
 int BookmarkModel::indexOfUrl(const QString &url) const
@@ -82,6 +103,12 @@ int BookmarkModel::indexOfUrl(const QString &url) const
     return -1;
 }
 
+bool BookmarkModel::isWebUrl(const QUrl &url)
+{
+    return url.isValid() && (url.scheme() == QLatin1String("http")
+                             || url.scheme() == QLatin1String("https"));
+}
+
 bool BookmarkModel::contains(const QUrl &url) const
 {
     return indexOfUrl(url.toString()) >= 0;
@@ -89,14 +116,13 @@ bool BookmarkModel::contains(const QUrl &url) const
 
 void BookmarkModel::add(const QUrl &url, const QString &title)
 {
-    if (!url.isValid() || (url.scheme() != QLatin1String("http")
-                           && url.scheme() != QLatin1String("https")))
+    if (!isWebUrl(url))
         return;
     const QString key = url.toString();
     if (indexOfUrl(key) >= 0)
         return;
 
-    const QDateTime now = QDateTime::currentDateTime();
+    const QDateTime now = QDateTime::currentDateTimeUtc();
     beginInsertRows({}, 0, 0);
     Entry e;
     e.url = key;
@@ -114,7 +140,10 @@ void BookmarkModel::add(const QUrl &url, const QString &title)
         q.addBindValue(key);
         q.addBindValue(title);
         q.addBindValue(now.toMSecsSinceEpoch());
-        q.exec();
+        if (!q.exec()) {
+            qWarning("Filka: could not persist bookmark: %s",
+                     qPrintable(q.lastError().text()));
+        }
     }
 }
 
@@ -141,12 +170,17 @@ void BookmarkModel::removeAt(int index)
         QSqlQuery q(m_db);
         q.prepare(QStringLiteral("DELETE FROM bookmarks WHERE url = ?"));
         q.addBindValue(key);
-        q.exec();
+        if (!q.exec()) {
+            qWarning("Filka: could not remove bookmark: %s",
+                     qPrintable(q.lastError().text()));
+        }
     }
 }
 
 bool BookmarkModel::toggle(const QUrl &url, const QString &title)
 {
+    if (!isWebUrl(url))
+        return false;
     if (contains(url)) {
         removeUrl(url);
         return false;
@@ -189,6 +223,9 @@ void BookmarkModel::clear()
 
     if (m_db.isOpen()) {
         QSqlQuery q(m_db);
-        q.exec(QStringLiteral("DELETE FROM bookmarks"));
+        if (!q.exec(QStringLiteral("DELETE FROM bookmarks"))) {
+            qWarning("Filka: could not clear bookmarks: %s",
+                     qPrintable(q.lastError().text()));
+        }
     }
 }

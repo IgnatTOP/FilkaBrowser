@@ -61,16 +61,17 @@ Rectangle {
         Pill {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredHeight: 30
+            accessibleName: qsTr("Скачать обновление")
             strokeWidth: 0
             fillColor: Theme.accent
             onClicked: UpdateChecker.openDownload()
             Row {
                 spacing: Theme.s1
-                Icon { anchors.verticalCenter: parent.verticalCenter; name: "download"; size: 13; color: "white" }
+                Icon { anchors.verticalCenter: parent.verticalCenter; name: "download"; size: 13; color: Theme.accentForeground }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("Скачать")
-                    color: "white"
+                    color: Theme.accentForeground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeXs
                     font.weight: Font.DemiBold

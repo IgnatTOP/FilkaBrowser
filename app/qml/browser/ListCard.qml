@@ -17,15 +17,15 @@ Rectangle {
     property var hostFn: (u) => "" + u
     signal activated(string url)
 
-    radius: Theme.radiusLg
-    color: Theme.glassLow
+    radius: Theme.radiusMd
+    color: Theme.card
     border.width: 1
-    border.color: Theme.glassStroke
+    border.color: Theme.outline
     clip: true
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.s4
+        anchors.margins: Theme.s3
         spacing: Theme.s3
 
         RowLayout {
@@ -56,7 +56,7 @@ Rectangle {
                     anchors.fill: parent
                     anchors.rightMargin: 2
                     radius: Theme.radiusSm
-                    color: rowHover.hovered ? Theme.glassMed : "transparent"
+                    color: rowHover.hovered ? Theme.hoverFill : "transparent"
                     Behavior on color { ColorAnimation { duration: Motion.fast } }
 
                     RowLayout {
@@ -66,8 +66,8 @@ Rectangle {
                         spacing: Theme.s2
 
                         Favicon {
-                            Layout.preferredWidth: 24
-                            Layout.preferredHeight: 24
+                            Layout.preferredWidth: 22
+                            Layout.preferredHeight: 22
                             host: card.hostFn(row.url)
                             fallbackText: card.hostFn(row.url).charAt(0).toUpperCase()
                         }
@@ -76,7 +76,7 @@ Rectangle {
                             text: row.title.length ? row.title : card.hostFn(row.url)
                             color: Theme.textPrimary
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSm
+                            font.pixelSize: Theme.fontSizeXs
                             elide: Text.ElideRight
                         }
                         Text {

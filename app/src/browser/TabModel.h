@@ -13,6 +13,7 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QVariantList>
 #include <qqmlregistration.h>
 
 class TabModel : public QAbstractListModel
@@ -21,9 +22,10 @@ class TabModel : public QAbstractListModel
     QML_ELEMENT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int activeIndex READ activeIndex WRITE setActiveIndex NOTIFY activeIndexChanged)
+    Q_PROPERTY(QVariantList audibleTabs READ audibleTabs NOTIFY audibleTabsChanged)
 
 public:
-    enum Roles {
+    enum Roles : int {
         TitleRole = Qt::UserRole + 1,
         UrlRole,
         IconRole,
@@ -73,15 +75,18 @@ public:
     // Session persistence: the real (non-blank) URLs and a restore helper.
     QStringList tabUrls() const;
     void restore(const QStringList &urls, int activeIndex);
+    Q_INVOKABLE QVariantList entries(const QString &query = {}, int limit = 12) const;
+    QVariantList audibleTabs() const;
 
 signals:
     void countChanged();
     void activeIndexChanged();
+    void audibleTabsChanged();
     void changed();   // any structural/url change — used to persist the session
 
 private:
     struct TabData {
-        QString title = QStringLiteral("New Tab");
+        QString title = QStringLiteral("Новая вкладка");
         QUrl url;
         QUrl icon;
         bool loading = false;

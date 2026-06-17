@@ -21,25 +21,52 @@ Item {
 
     DownloadsPanel {
         open: root.shell.activePanel === "downloads"
-        downloads: root.shell.downloads
+        privateMode: root.browser.privateMode
         onRequestClose: root.shell.closePanels()
-        onClearList: root.shell.downloads = []
+        onClearList: DownloadModel.clearCompleted(root.browser.privateMode)
+    }
+
+    BookmarksPanel {
+        open: root.shell.activePanel === "bookmarks"
+        onRequestClose: root.shell.closePanels()
+        onNavigate: (url) => { root.browser.navigate(url); root.shell.closePanels() }
     }
 
     SettingsPanel {
         open: root.shell.activePanel === "settings"
+        profile: root.browser.profile
         onRequestClose: root.shell.closePanels()
     }
 
-    TranslatorPanel {
+    TranslatorPopover {
         open: root.shell.activePanel === "translator"
         activeView: root.browser.activeView
-        visible: open
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.s3
-        width: Math.min(520, parent.width - Theme.s4)
+        anchors.fill: parent
+        anchorX: root.browser.sidebarWidth + Theme.s3
+        anchorY: 92
         z: 300
         onRequestClose: root.shell.closePanels()
+        onRequestSettings: root.shell.activePanel = "settings"
+    }
+
+    CommandPalette {
+        anchors.fill: parent
+        open: root.shell.activeOverlay === "commandPalette"
+        browser: root.browser
+        shell: root.shell
+    }
+
+    SiteInfoPopup {
+        anchors.fill: parent
+        open: root.shell.activeOverlay === "siteInfo"
+        browser: root.browser
+        shell: root.shell
+    }
+
+    DownloadPrompt {
+        anchors.fill: parent
+        open: root.shell.activeOverlay === "downloadPrompt"
+        shell: root.shell
+        privateMode: root.browser.privateMode
     }
 }

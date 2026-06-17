@@ -11,15 +11,39 @@ Item {
     property var tabsModel
     property var profile
     property Item activeView: null
+    property bool recordHistory: true
+    property real defaultZoom: 1.0
+    property bool roundedWebClip: false
 
     // When false (start page is showing) the active web view is hidden so the
     // QML start surface isn't punched through by Chromium's native compositing.
     property bool showWeb: true
 
+    // ===== Custom web-page scrollbars =====
+    // Inject a thin, themed ::-webkit-scrollbar style into every page so the
+    // scrollbars inside web content match the app's own (FilkaScrollBar). The
+    // <style> is idempotent (re-run on theme change) and falls back to the
+    // document element when <head> isn't ready yet.
+    readonly property string _sbThumb: Theme.dark ? "rgba(255,255,255,0.22)" : "rgba(15,19,27,0.22)"
+    readonly property string _sbHover: Theme.dark ? "rgba(255,255,255,0.42)" : "rgba(15,19,27,0.42)"
+    function scrollbarScript() {
+        var css = "::-webkit-scrollbar{width:12px;height:12px}"
+                + "::-webkit-scrollbar-track{background:transparent}"
+                + "::-webkit-scrollbar-thumb{background-color:" + _sbThumb
+                + ";border-radius:8px;border:3px solid transparent;background-clip:content-box}"
+                + "::-webkit-scrollbar-thumb:hover{background-color:" + _sbHover + "}"
+                + "::-webkit-scrollbar-corner{background:transparent}"
+        return "(function(){var id='__filka_scrollbar__';var s=document.getElementById(id);"
+             + "if(!s){s=document.createElement('style');s.id=id;"
+             + "(document.head||document.documentElement).appendChild(s);}"
+             + "s.textContent=" + JSON.stringify(css) + ";})();"
+    }
+
     // Raised when the user picks "Inspect" so the shell can open dev tools.
     signal devToolsRequested()
+    signal pictureInPictureRequested()
     // A page asked to enter/leave HTML fullscreen (video players, slideshows).
-    signal fullScreenRequested(bool on)
+    signal fullScreenRequested(bool on, var view)
     // A page wants a permission (camera, mic, geolocation, notifications...).
     signal permissionRequested(var permission)
 
@@ -27,6 +51,7 @@ Item {
         activeView = (tabsModel && tabsModel.activeIndex >= 0)
                      ? rep.itemAt(tabsModel.activeIndex) : null
     }
+    function viewAt(index) { return rep.itemAt(index) }
     Component.onCompleted: syncActive()
     Connections {
         target: root.tabsModel
@@ -34,12 +59,37 @@ Item {
         function onCountChanged() { root.syncActive() }
     }
 
+    // Rounded mask source — an opaque rounded rect on a transparent item. Its
+    // alpha drives the MultiEffect mask below, so the page is clipped to actual
+    // rounded corners (plain `clip` only clips to the bounding rectangle, which
+    // is why the corners stayed sharp before).
+    Item {
+        id: webMask
+        anchors.fill: parent
+        visible: false
+        layer.enabled: true
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusMd
+            color: "black"
+        }
+    }
+
     Rectangle {
         id: clipFrame
         anchors.fill: parent
-        radius: Theme.radiusLg
+        radius: root.roundedWebClip ? Theme.radiusMd : 0
         color: root.showWeb ? "white" : "transparent"
-        clip: true
+
+        // Round the whole web stack (page + failure overlay) to the mask shape.
+        layer.enabled: root.roundedWebClip
+        layer.smooth: true
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: webMask
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1.0
+        }
 
         Repeater {
             id: rep
@@ -55,12 +105,19 @@ Item {
                 settings.pdfViewerEnabled: true
                 settings.localStorageEnabled: true
                 settings.javascriptEnabled: true
+                settings.javascriptCanOpenWindows: true
+                settings.fullScreenSupportEnabled: true
+                settings.screenCaptureEnabled: true
+                settings.webGLEnabled: true
+                settings.dnsPrefetchEnabled: true
+                settings.printElementBackgrounds: true
+                settings.scrollAnimatorEnabled: false
+                settings.backForwardCacheEnabled: true
                 visible: index === root.tabsModel.activeIndex && root.showWeb
                 z: visible ? 1 : 0
-                // Force offscreen rendering so the parent's rounded-clip actually
-                // applies. Without this, WebEngineView composites above QML and
-                // ignores the parent's clip/radius.
-                layer.enabled: true
+                // Offscreen rendering is only needed when the shell explicitly wants
+                // rounded clipping; keep the normal path on Chromium's native layer.
+                layer.enabled: root.roundedWebClip
 
                 // Per-tab mute, driven from the model (tab context menu). Report
                 // audio activity back so the strip can show a speaker glyph.
@@ -71,17 +128,55 @@ Item {
                 property bool failed: false
                 property string failedUrl: ""
 
-                Component.onCompleted: url = model.url
-                onUrlChanged: root.tabsModel.updateUrl(index, url)
+                function runSponsorBlockSync() {
+                    const script = AdBlockManager.sponsorBlockEnabled
+                                   ? AdBlockManager.sponsorBlockScriptForUrl(url.toString())
+                                   : AdBlockManager.sponsorBlockDisableScript()
+                    if (script.length > 0)
+                        runJavaScript(script)
+                }
+
+                Connections {
+                    target: AdBlockManager
+                    function onSponsorBlockEnabledChanged() { webView.runSponsorBlockSync() }
+                }
+
+                // Restyle the page's scrollbars live when the app theme flips.
+                Connections {
+                    target: Theme
+                    function onDarkChanged() { webView.runJavaScript(root.scrollbarScript()) }
+                }
+
+                Component.onCompleted: {
+                    url = model.url
+                    zoomFactor = root.defaultZoom
+                }
+                onUrlChanged: {
+                    root.tabsModel.updateUrl(index, url)
+                    runSponsorBlockSync()
+                }
                 onTitleChanged: root.tabsModel.updateTitle(index, title)
                 onIconChanged: root.tabsModel.updateIcon(index, icon)
                 onLoadingChanged: function(info) {
                     root.tabsModel.updateLoading(index, loading)
                     if (info.status === WebEngineView.LoadStartedStatus) {
                         failed = false
+                        runJavaScript(root.scrollbarScript())
+                        const earlyCosmeticScript = AdBlockManager.earlyCosmeticScript()
+                        if (earlyCosmeticScript.length > 0)
+                            runJavaScript(earlyCosmeticScript)
                     } else if (info.status === WebEngineView.LoadSucceededStatus) {
                         failed = false
-                        HistoryModel.recordVisit(info.url, title)
+                        runJavaScript(root.scrollbarScript())
+                        if (root.recordHistory)
+                            HistoryModel.recordVisit(info.url, title)
+                        const earlyCosmeticScript = AdBlockManager.earlyCosmeticScript()
+                        if (earlyCosmeticScript.length > 0)
+                            runJavaScript(earlyCosmeticScript)
+                        const cosmeticScript = AdBlockManager.cosmeticScriptForUrl(info.url)
+                        if (cosmeticScript.length > 0)
+                            runJavaScript(cosmeticScript)
+                        runSponsorBlockSync()
                     } else if (info.status === WebEngineView.LoadFailedStatus) {
                         // Ignore user-initiated aborts (stop button, fast re-nav).
                         if (!/aborted/i.test(info.errorString || "")) {
@@ -112,7 +207,7 @@ Item {
                 // the window fullscreen + hide chrome around this view.
                 onFullScreenRequested: function(request) {
                     request.accept()
-                    root.fullScreenRequested(request.toggleOn)
+                    root.fullScreenRequested(request.toggleOn, webView)
                 }
                 onPermissionRequested: function(permission) {
                     root.permissionRequested(permission)
@@ -169,21 +264,32 @@ Item {
                     elide: Text.ElideMiddle
                 }
                 Rectangle {
+                    id: retryButton
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: retryText.implicitWidth + Theme.s6 * 2
                     height: Theme.controlMd
                     radius: Theme.radiusPill
                     color: retryHover.hovered ? Theme.accent : Theme.accentSoft
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("Повторить загрузку страницы")
+                    function retry() {
+                        if (root.activeView)
+                            root.activeView.reload()
+                    }
                     Behavior on color { ColorAnimation { duration: Motion.fast } }
                     Text {
                         id: retryText
                         anchors.centerIn: parent
                         text: qsTr("Повторить")
-                        color: retryHover.hovered ? "white" : Theme.accent
+                        color: retryHover.hovered ? Theme.accentForeground : Theme.accentSoftForeground
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm; font.weight: Font.Medium
                     }
                     HoverHandler { id: retryHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: if (root.activeView) root.activeView.reload() }
+                    TapHandler { onTapped: retryButton.retry() }
+                    Keys.onReturnPressed: retry()
+                    Keys.onEnterPressed: retry()
+                    Keys.onSpacePressed: retry()
                 }
             }
         }
@@ -193,5 +299,6 @@ Item {
         id: ctxMenu
         tabsModel: root.tabsModel
         onInspectRequested: root.devToolsRequested()
+        onPictureInPictureRequested: root.pictureInPictureRequested()
     }
 }

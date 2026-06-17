@@ -8,7 +8,7 @@ Item {
     id: root
     signal navigate(string url)
 
-    implicitHeight: (BookmarkModel.count > 0) ? 40 : 0
+    implicitHeight: (BookmarkModel.count > 0) ? 36 : 0
     clip: true
     Behavior on implicitHeight { NumberAnimation { duration: Motion.base; easing.type: Motion.emphasized } }
 
@@ -24,8 +24,8 @@ Item {
         ListView {
             id: list
             anchors.fill: parent
-            anchors.leftMargin: Theme.s3
-            anchors.rightMargin: Theme.s3
+            anchors.leftMargin: Theme.s2
+            anchors.rightMargin: Theme.s2
             orientation: ListView.Horizontal
             spacing: Theme.s2
             model: BookmarkModel
@@ -54,10 +54,10 @@ Item {
                     width: Math.min(190, Math.max(92, row.implicitWidth + Theme.s4))
                     height: 28
                     anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-                    radius: Theme.radiusPill
-                    color: chipHover.hovered ? Theme.glassMed : Theme.glassLow
+                    radius: Theme.radiusSm
+                    color: chipHover.hovered ? Theme.hoverFill : "transparent"
                     border.width: activeFocus ? Theme.focusWidth : 1
-                    border.color: activeFocus ? Theme.focusRing : Theme.glassStroke
+                    border.color: activeFocus ? Theme.focusRing : Theme.outline
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
                     Accessible.name: chip.title
@@ -79,23 +79,21 @@ Item {
                             font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs
                             elide: Text.ElideRight
                             width: Math.min(120, implicitWidth)
-                            rightPadding: chipHover.hovered ? 18 : 0
+                            rightPadding: chipHover.hovered || chip.activeFocus ? 18 : 0
                             Behavior on rightPadding { NumberAnimation { duration: Motion.fast } }
                         }
                     }
-                    // Remove affordance on hover.
-                    Rectangle {
+                    // Remove affordance on hover/focus.
+                    IconButton {
                         anchors { right: parent.right; rightMargin: 3; verticalCenter: parent.verticalCenter }
-                        width: 16; height: 16; radius: 8
-                        visible: chipHover.hovered
-                        color: closeHover.hovered ? Theme.danger : "transparent"
-                        Icon {
-                            anchors.centerIn: parent
-                            name: "x"; size: 11
-                            color: closeHover.hovered ? "white" : Theme.textMuted
-                        }
-                        HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: BookmarkModel.removeAt(chip.index) }
+                        size: 18
+                        iconName: "x"
+                        iconSize: 11
+                        iconColor: Theme.textMuted
+                        hoverColor: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.18)
+                        visible: chipHover.hovered || chip.activeFocus || activeFocus
+                        Accessible.name: qsTr("Удалить закладку")
+                        onClicked: BookmarkModel.removeAt(chip.index)
                     }
 
                     HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
