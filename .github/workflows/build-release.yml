@@ -208,6 +208,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download Windows build
         uses: actions/download-artifact@v4
         with:
@@ -235,42 +239,39 @@ jobs:
             done
           fi
 
+      - name: Generate release notes from commits
+        run: |
+          current="${{ github.ref_name }}"
+          previous="$(git tag --list 'v*' --sort=-creatordate | awk -v current="$current" '$0 != current { print; exit }')"
+
+          echo "# Filka $current" > release-notes.md
+          echo "" >> release-notes.md
+
+          if [ -n "$previous" ]; then
+            echo "## Изменения с версии $previous" >> release-notes.md
+            echo "" >> release-notes.md
+            if ! git log --pretty=format:"- %s (%h)" "$previous..$current" | tee -a release-notes.md | grep -q .; then
+              echo "- Изменения не найдены." >> release-notes.md
+            fi
+          else
+            echo "## Последние изменения" >> release-notes.md
+            echo "" >> release-notes.md
+            if ! git log --pretty=format:"- %s (%h)" -n 15 | tee -a release-notes.md | grep -q .; then
+              echo "- Изменения не найдены." >> release-notes.md
+            fi
+          fi
+
+          {
+            echo ""
+            echo "## Скачать"
+            echo ""
+            echo "- **Windows:** \`Filka-$current-windows-x86_64.zip\` — распакуйте и запустите \`filka.exe\`."
+            echo "- **Linux:** \`Filka-$current-linux-x86_64.AppImage\` — \`chmod +x\` и запустите (FUSE-совместимый дистрибутив)."
+          } >> release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "Filka ${{ github.ref_name }}"
           files: release-assets/*
-          body: |
-            # Filka ${{ github.ref_name }}
-
-            Крупное обновление: браузер дорос до полноценного повседневного
-            использования и получил сквозную систему анимаций.
-
-            ## ✨ Новые возможности
-            - **Подсказки в адресной строке** — мгновенные совпадения из истории и
-              закладок плюс живые поисковые подсказки. Навигация стрелками,
-              Enter, Esc.
-            - **Возврат закрытой вкладки** — `Ctrl+Shift+T` восстанавливает
-              последнюю закрытую вкладку.
-            - **Контекстное меню вкладки** (правый клик) — дублировать,
-              закрепить, выключить звук, закрыть другие / справа.
-            - **Звук вкладок** — индикатор воспроизведения и кнопка mute прямо на
-              вкладке.
-            - **Перетаскивание вкладок** мышью с плавным «магнитом» к месту.
-            - **Новое окно** — `Ctrl+N` открывает независимое окно (общий профиль,
-              свои вкладки).
-            - **Печать / Сохранить как PDF** — `Ctrl+P` или пункт меню страницы.
-            - **Страница ошибки** при сбое загрузки с кнопкой «Повторить».
-            - **Очистка данных** — кэш и cookie в настройках конфиденциальности.
-
-            ## 🎬 Анимации
-            - Появление/удаление и перестановка вкладок, закладок, истории и
-              загрузок.
-            - Плавные контекстные меню и панель подсказок.
-            - Микроанимации кнопок, бейджа зума и переключателя воркспейсов.
-
-            ## ⬇️ Загрузки
-            - **Windows:** `Filka-${{ github.ref_name }}-windows-x86_64.zip` —
-              распакуйте и запустите `filka.exe`.
-            - **Linux:** `Filka-${{ github.ref_name }}-linux-x86_64.AppImage` —
-              `chmod +x` и запустите (FUSE-совместимый дистрибутив).
+          body_path: release-notes.md
