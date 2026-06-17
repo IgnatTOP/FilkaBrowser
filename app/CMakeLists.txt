@@ -69,6 +69,9 @@ add_custom_target(filka_adblock_ffi_build DEPENDS "${FILKA_ADBLOCK_RUST_LIB}")
 add_library(filka_adblock_ffi STATIC IMPORTED GLOBAL)
 set_target_properties(filka_adblock_ffi PROPERTIES IMPORTED_LOCATION "${FILKA_ADBLOCK_RUST_LIB}")
 add_dependencies(filka_adblock_ffi filka_adblock_ffi_build)
+if(WIN32)
+    set_target_properties(filka_adblock_ffi PROPERTIES INTERFACE_LINK_LIBRARIES "ntdll")
+endif()
 
 set_source_files_properties(qml/theme/Theme.qml PROPERTIES
     QT_QML_SINGLETON_TYPE TRUE)
@@ -194,6 +197,10 @@ target_link_libraries(filka PRIVATE
     Qt6::Network
     filka_adblock_ffi
 )
+
+if(WIN32)
+    target_link_libraries(filka PRIVATE ntdll)
+endif()
 
 if(UNIX AND NOT APPLE)
     target_link_libraries(filka PRIVATE ${CMAKE_DL_LIBS} m pthread)
