@@ -242,7 +242,15 @@ jobs:
       - name: Generate release notes from commits
         run: |
           current="${{ github.ref_name }}"
-          previous="$(git tag --list 'v*' --sort=-creatordate | awk -v current="$current" '$0 != current { print; exit }')"
+          if command -v gh >/dev/null 2>&1; then
+            previous="$(gh release list --json tagName --exclude-drafts --exclude-pre-releases --limit 50 \
+              --jq '.[] | .tagName' | awk -v current="$current" '$0 != current { print; exit }')"
+          else
+            previous=""
+          fi
+          if [ -z "$previous" ]; then
+            previous="$(git tag --list 'v*' --sort=-creatordate | awk -v current="$current" '$0 != current { print; exit }')"
+          fi
 
           echo "# Filka $current" > release-notes.md
           echo "" >> release-notes.md
