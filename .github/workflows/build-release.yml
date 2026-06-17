@@ -212,20 +212,34 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: filka-windows
+          path: artifacts/windows
 
       - name: Download Linux build
+        id: download-linux
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: filka-linux
+          path: artifacts/linux
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release-assets
+          shopt -s nullglob
+          for f in artifacts/windows/Filka-*-windows-x86_64.zip; do
+            cp "$f" release-assets/
+          done
+          if [ "${{ steps.download-linux.outcome }}" = "success" ]; then
+            for f in artifacts/linux/Filka-*-linux-x86_64.AppImage; do
+              cp "$f" release-assets/
+            done
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "Filka ${{ github.ref_name }}"
-          files: |
-            Filka-*-windows-x86_64.zip
-            Filka-*-linux-x86_64.AppImage
+          files: release-assets/*
           body: |
             # Filka ${{ github.ref_name }}
 
