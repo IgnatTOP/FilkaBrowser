@@ -9,7 +9,7 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Windows — MSVC build, windeployqt bundle, zipped for the release.
+  # Windows — MSVC build, Qt deploy, NSIS .exe installer for the release.
   # ---------------------------------------------------------------------------
   build-windows:
     runs-on: windows-latest
@@ -31,8 +31,8 @@ jobs:
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Generate Windows icon
-        run: magick app/assets/logo.png -define icon:auto-resize=16,32,48,64,128,256 app/assets/filka.ico
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
 
       - name: Set package suffix
         shell: pwsh
@@ -55,27 +55,22 @@ jobs:
       - name: QML lint
         run: cmake --build build --target filka_qml_lint
 
-      - name: Install
-        run: cmake --install build
-
-      - name: Deploy Qt
-        run: windeployqt --release --compiler-runtime --qmldir app/qml ${{ github.workspace }}/install/bin/filka.exe
-
-      - name: Copy launch files
+      - name: Package installer
         shell: pwsh
         run: |
-          Copy-Item app/assets/filka.ico install/bin/
-          Copy-Item filka.bat install/bin/
-
-      - name: Package zip
-        shell: pwsh
-        run: Compress-Archive -Path install/bin/* -DestinationPath "Filka-${env:PACKAGE_SUFFIX}-windows-x86_64.zip"
+          cpack -G NSIS --config build/CPackConfig.cmake
+          $installer = Get-ChildItem -Path build/package -Filter "Filka-*-windows-x86_64.exe" | Select-Object -First 1
+          if (-not $installer) {
+            throw "CPack did not produce a Windows installer"
+          }
+          $target = "Filka-${env:PACKAGE_SUFFIX}-windows-x86_64.exe"
+          Move-Item $installer.FullName $target -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: filka-windows
-          path: Filka-*-windows-x86_64.zip
+          path: Filka-*-windows-x86_64.exe
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -273,7 +268,7 @@ jobs:
             echo ""
             echo "## Скачать"
             echo ""
-            echo "- **Windows:** \`Filka-$current-windows-x86_64.zip\` — распакуйте и запустите \`filka.exe\`."
+            echo "- **Windows:** \`Filka-$current-windows-x86_64.exe\` — запустите установщик."
             echo "- **Linux:** \`Filka-$current-linux-x86_64.AppImage\` — \`chmod +x\` и запустите (FUSE-совместимый дистрибутив)."
           } >> release-notes.md
 

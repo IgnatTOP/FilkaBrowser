@@ -4,19 +4,162 @@
 // shell (the Filka design-system UI). Native C++ browser models (tabs,
 // workspaces, data) are registered here as the project grows.
 
-#include <QGuiApplication>
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QGuiApplication>
 #include <QIcon>
+#include <QMutex>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
+#include <QStandardPaths>
+#include <QSysInfo>
 #include <QtWebEngineQuick>
+
+#include <cstdio>
+#include <cstdlib>
 
 #ifndef FILKA_VERSION
 #define FILKA_VERSION "0.0.0"
 #endif
 
+namespace {
+
+constexpr qint64 kMaxLogFileSize = 4 * 1024 * 1024;
+
+QMutex gLogMutex;
+QFile *gLogFile = nullptr;
+QString gLogPath;
+
+const char *messageTypeName(QtMsgType type)
+{
+    switch (type) {
+    case QtDebugMsg:
+        return "debug";
+    case QtInfoMsg:
+        return "info";
+    case QtWarningMsg:
+        return "warning";
+    case QtCriticalMsg:
+        return "critical";
+    case QtFatalMsg:
+        return "fatal";
+    }
+    return "unknown";
+}
+
+QString logDirectory()
+{
+    const QString configured = qEnvironmentVariable("FILKA_LOG_DIR").trimmed();
+    if (!configured.isEmpty())
+        return configured;
+
+    QString location = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (location.isEmpty()) {
+#ifdef Q_OS_WIN
+        location = QDir::home().filePath(QStringLiteral("AppData/Local/Filka/Filka Browser"));
+#else
+        location = QDir::home().filePath(QStringLiteral(".local/share/Filka/Filka Browser"));
+#endif
+    }
+    return QDir(location).filePath(QStringLiteral("logs"));
+}
+
+void rotateLogFile(const QString &path)
+{
+    const QFileInfo info(path);
+    if (!info.exists() || info.size() <= kMaxLogFileSize)
+        return;
+
+    QFile::remove(path + QStringLiteral(".1"));
+    QFile::rename(path, path + QStringLiteral(".1"));
+}
+
+void filkaMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &message)
+{
+    QString source;
+    if (context.file && context.line > 0) {
+        source = QStringLiteral(" (%1:%2)")
+                     .arg(QString::fromUtf8(context.file))
+                     .arg(context.line);
+    }
+
+    const QString category = QString::fromUtf8(context.category ? context.category : "default");
+    const QString line = QStringLiteral("%1 [%2] %3: %4%5")
+                             .arg(QDateTime::currentDateTime().toString(Qt::ISODateWithMs))
+                             .arg(QString::fromLatin1(messageTypeName(type)))
+                             .arg(category)
+                             .arg(message)
+                             .arg(source);
+    const QByteArray bytes = line.toUtf8();
+
+    {
+        QMutexLocker locker(&gLogMutex);
+        if (gLogFile && gLogFile->isOpen()) {
+            gLogFile->write(bytes);
+            gLogFile->write("\n");
+            gLogFile->flush();
+        }
+    }
+
+    std::fprintf(stderr, "%s\n", bytes.constData());
+    std::fflush(stderr);
+
+    if (type == QtFatalMsg)
+        std::abort();
+}
+
+void installFileLogging()
+{
+    const QString dirPath = logDirectory();
+    if (!QDir().mkpath(dirPath)) {
+        std::fprintf(stderr, "Filka logging: cannot create log directory: %s\n",
+                     qPrintable(QDir::toNativeSeparators(dirPath)));
+        std::fflush(stderr);
+        return;
+    }
+
+    gLogPath = QDir(dirPath).filePath(QStringLiteral("filka.log"));
+    rotateLogFile(gLogPath);
+
+    gLogFile = new QFile(gLogPath);
+    if (!gLogFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        std::fprintf(stderr, "Filka logging: cannot open log file: %s\n",
+                     qPrintable(QDir::toNativeSeparators(gLogPath)));
+        std::fflush(stderr);
+        delete gLogFile;
+        gLogFile = nullptr;
+        return;
+    }
+
+    qInstallMessageHandler(filkaMessageHandler);
+    qInfo().noquote() << "File logging started:" << QDir::toNativeSeparators(gLogPath);
+}
+
+void shutdownFileLogging()
+{
+    qInstallMessageHandler(nullptr);
+
+    QMutexLocker locker(&gLogMutex);
+    if (gLogFile) {
+        gLogFile->flush();
+        gLogFile->close();
+        delete gLogFile;
+        gLogFile = nullptr;
+    }
+}
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
+    QCoreApplication::setOrganizationName(QStringLiteral("Filka"));
+    QCoreApplication::setApplicationName(QStringLiteral("Filka Browser"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(FILKA_VERSION));
+    installFileLogging();
+
 #ifdef Q_OS_WIN
     qputenv("QTWEBENGINE_DISABLE_SANDBOX", "1");
 #endif
@@ -59,6 +202,16 @@ int main(int argc, char *argv[])
     app.setApplicationName("Filka Browser");
     app.setApplicationVersion(QStringLiteral(FILKA_VERSION));
 
+    qInfo().noquote() << "Filka Browser" << QStringLiteral(FILKA_VERSION)
+                      << "starting with Qt" << QString::fromLatin1(qVersion())
+                      << "on" << QSysInfo::prettyProductName();
+    qInfo().noquote() << "App data:"
+                      << QDir::toNativeSeparators(
+                             QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+    qInfo().noquote() << "Cache data:"
+                      << QDir::toNativeSeparators(
+                             QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+
     // Filka brand mark — used for the window/taskbar icon (the same asset is
     // bundled into the QML module for in-app branding).
     app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/Filka/assets/logo.png")));
@@ -69,9 +222,16 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
-        []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
+        []() {
+            qCritical().noquote() << "QML root object creation failed; see previous diagnostics.";
+            QCoreApplication::exit(-1);
+        },
+        Qt::QueuedConnection);
 
     engine.loadFromModule("Filka", "Main");
 
-    return app.exec();
+    const int exitCode = app.exec();
+    qInfo() << "Filka exiting with code" << exitCode;
+    shutdownFileLogging();
+    return exitCode;
 }

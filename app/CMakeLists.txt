@@ -1,18 +1,7 @@
 set(FILKA_WINDOWS_RC)
 if(WIN32)
-    find_program(MAGICK_CMD magick convert)
     set(FILKA_ICON_FILE "${CMAKE_CURRENT_BINARY_DIR}/assets/filka.ico")
-    if(MAGICK_CMD AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png")
-        add_custom_command(
-            OUTPUT "${FILKA_ICON_FILE}"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
-            COMMAND ${MAGICK_CMD} "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png"
-                    -define icon:auto-resize=16,32,48,64,128,256
-                    "${FILKA_ICON_FILE}"
-            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png"
-            COMMENT "Generating Windows icon from logo.png"
-        )
-    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico")
         add_custom_command(
             OUTPUT "${FILKA_ICON_FILE}"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
@@ -22,6 +11,19 @@ if(WIN32)
             DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico"
             COMMENT "Copying Windows icon")
     else()
+        find_program(MAGICK_CMD NAMES magick convert)
+    endif()
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico" AND MAGICK_CMD AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png")
+        add_custom_command(
+            OUTPUT "${FILKA_ICON_FILE}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
+            COMMAND ${MAGICK_CMD} "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png"
+                    -define icon:auto-resize=16,32,48,64,128,256
+                    "${FILKA_ICON_FILE}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png"
+            COMMENT "Generating Windows icon from logo.png"
+        )
+    elseif(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/filka.ico")
         message(FATAL_ERROR "Windows builds need ImageMagick (magick/convert) or app/assets/filka.ico")
     endif()
     set(FILKA_ICON_PATH "${FILKA_ICON_FILE}")
@@ -262,3 +264,11 @@ endif()
 install(TARGETS filka
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION bin)
+
+if(WIN32)
+    qt_generate_deploy_qml_app_script(
+        TARGET filka
+        OUTPUT_SCRIPT FILKA_DEPLOY_SCRIPT
+        NO_UNSUPPORTED_PLATFORM_ERROR)
+    install(SCRIPT ${FILKA_DEPLOY_SCRIPT})
+endif()
