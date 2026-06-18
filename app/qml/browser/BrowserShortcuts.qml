@@ -25,9 +25,9 @@ Item {
     Shortcut { sequences: ["Ctrl+L", "Ctrl+K", "Alt+D"]; onActivated: root.browser.focusAddress() }
     Shortcut { sequences: [StandardKey.Refresh, "Ctrl+R"]
                onActivated: if (root.browser.activeView) root.browser.activeView.reload() }
-    Shortcut { sequence: StandardKey.Back
+    Shortcut { sequences: [StandardKey.Back]
                onActivated: if (root.browser.canGoBack) root.browser.activeView.goBack() }
-    Shortcut { sequence: StandardKey.Forward
+    Shortcut { sequences: [StandardKey.Forward]
                onActivated: if (root.browser.canGoForward) root.browser.activeView.goForward() }
     Shortcut { sequence: "Ctrl+Tab";       onActivated: root.browser.cycleTab(1) }
     Shortcut { sequence: "Ctrl+Shift+Tab"; onActivated: root.browser.cycleTab(-1) }

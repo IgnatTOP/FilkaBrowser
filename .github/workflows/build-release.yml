@@ -225,7 +225,7 @@ jobs:
         run: |
           mkdir -p release-assets
           shopt -s nullglob
-          for f in artifacts/windows/Filka-*-windows-x86_64.zip; do
+          for f in artifacts/windows/Filka-*-windows-x86_64.exe; do
             cp "$f" release-assets/
           done
           if [ "${{ steps.download-linux.outcome }}" = "success" ]; then

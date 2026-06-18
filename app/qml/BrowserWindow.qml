@@ -46,7 +46,10 @@ ApplicationWindow {
         httpCacheMaximumSize: 0
         downloadPath: AppSettings.downloadPath
         httpAcceptLanguage: Qt.locale().name.replace("_", "-")
-        spellCheckEnabled: true
+        httpUserAgent: Qt.platform.os === "windows"
+                       ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                       : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        spellCheckEnabled: false
     }
 
     // Theme mirrors the persisted preferences; AppSettings is the source of truth.
@@ -182,26 +185,14 @@ ApplicationWindow {
             }
         }
 
-        // Resize grip (bottom-right corner) for the frameless window.
-        Item {
-            id: gripZone
-            width: 18; height: 18
-            anchors { right: parent.right; bottom: parent.bottom }
-            visible: appWindow.visibility !== Window.Maximized
-
-            DragHandler {
-                target: null
-                grabPermissions: PointerHandler.CanTakeOverFromAnything
-                cursorShape: Qt.SizeFDiagCursor
-                onActiveChanged: if (active) appWindow.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
-            }
-        }
-
         // First-run onboarding — created only until the user finishes it.
         Loader {
+            id: welcomeLoader
             anchors.fill: parent
             active: !AppSettings.onboarded
             sourceComponent: WelcomeDialog {}
+            onStatusChanged: if (status === Loader.Error)
+                console.warn("Filka: cannot load welcome dialog", errorString())
         }
 
         // Check for updates shortly after launch (non-blocking).
@@ -211,6 +202,106 @@ ApplicationWindow {
             running: true
             repeat: false
             onTriggered: UpdateChecker.checkForUpdates()
+        }
+    }
+
+    readonly property bool resizeZonesEnabled: appWindow.visibility !== Window.Maximized
+                                               && appWindow.visibility !== Window.FullScreen
+
+    Item {
+        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+        width: 8
+        z: 1000
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeHorCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.LeftEdge)
+        }
+    }
+    Item {
+        anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+        width: 8
+        z: 1000
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeHorCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.RightEdge)
+        }
+    }
+    Item {
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        height: 8
+        z: 1000
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeVerCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.TopEdge)
+        }
+    }
+    Item {
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        height: 8
+        z: 1000
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeVerCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.BottomEdge)
+        }
+    }
+    Item {
+        anchors { left: parent.left; top: parent.top }
+        width: 18; height: 18
+        z: 1001
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeFDiagCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.LeftEdge | Qt.TopEdge)
+        }
+    }
+    Item {
+        anchors { right: parent.right; top: parent.top }
+        width: 18; height: 18
+        z: 1001
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeBDiagCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.RightEdge | Qt.TopEdge)
+        }
+    }
+    Item {
+        anchors { left: parent.left; bottom: parent.bottom }
+        width: 18; height: 18
+        z: 1001
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeBDiagCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.LeftEdge | Qt.BottomEdge)
+        }
+    }
+    Item {
+        anchors { right: parent.right; bottom: parent.bottom }
+        width: 18; height: 18
+        z: 1001
+        visible: appWindow.resizeZonesEnabled
+        DragHandler {
+            target: null
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            cursorShape: Qt.SizeFDiagCursor
+            onActiveChanged: if (active) appWindow.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
         }
     }
 }

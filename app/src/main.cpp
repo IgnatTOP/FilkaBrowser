@@ -173,9 +173,9 @@ int main(int argc, char *argv[])
                 // GPU compositing — the single biggest factor for smooth scroll
                 " --enable-gpu-compositing"
                 " --enable-gpu-rasterization"
-                " --enable-zero-copy"
-                " --ignore-gpu-blocklist"
-                " --disable-gpu-driver-bug-workarounds"
+                // Keep Chromium's Windows GPU blocklist/workarounds intact.
+                // Forcing zero-copy or bypassing driver workarounds can produce
+                // black flicker in WebEngine media/WebGL surfaces.
                 // Smooth scrolling
                 " --enable-smooth-scrolling"
                 // V8 engine — larger heap for heavy pages
@@ -184,6 +184,8 @@ int main(int argc, char *argv[])
                 " --disable-renderer-backgrounding"
                 " --disable-background-timer-throttling"
                 " --disable-backgrounding-occluded-windows"
+                // Desktop-browser behaviour for music/video apps.
+                " --autoplay-policy=no-user-gesture-required"
                 // Feature flags MUST be one comma-list: Chromium keeps only the
                 // last --enable-features=, so separate flags silently drop the
                 // earlier ones. Merged here: DNS prefetch, SharedArrayBuffer,

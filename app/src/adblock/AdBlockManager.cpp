@@ -33,6 +33,20 @@ QString writableOrFallback(QStandardPaths::StandardLocation location, const QStr
     QDir().mkpath(path);
     return path;
 }
+
+bool isYandexMusicHost(QString host)
+{
+    host = host.trimmed().toLower();
+    if (host.startsWith(QLatin1String("www.")))
+        host = host.mid(4);
+    return host == QLatin1String("music.yandex.ru")
+        || host.endsWith(QLatin1String(".music.yandex.ru"));
+}
+
+bool isYandexMusicUrl(const QUrl &url)
+{
+    return isYandexMusicHost(url.host());
+}
 }
 
 AdBlockManager::AdBlockManager(QObject *parent)
@@ -324,7 +338,7 @@ QString AdBlockManager::earlyCosmeticScript() const
 
 QString AdBlockManager::cosmeticScriptForUrl(const QString &url)
 {
-    if (!m_enabled || !m_cosmeticFilteringEnabled || isSiteAllowed(url))
+    if (!m_enabled || !m_cosmeticFilteringEnabled || isSiteAllowed(url) || isYandexMusicUrl(QUrl(url)))
         return QString();
 
     QByteArray urlBytes = url.toUtf8();
@@ -523,6 +537,8 @@ void AdBlockManager::interceptRequest(QWebEngineUrlRequestInfo &info)
     }
 
     const QUrl firstParty = info.firstPartyUrl().isEmpty() ? info.initiator() : info.firstPartyUrl();
+    if (isYandexMusicUrl(requestUrl) || isYandexMusicUrl(firstParty))
+        return;
     if (hostIsAllowed(requestUrl.host()) || hostIsAllowed(firstParty.host()))
         return;
 

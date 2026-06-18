@@ -79,7 +79,7 @@ SidePanel {
                 }
 
                 Column {
-                    anchors { left: fileIcon.right; right: pauseBtn.visible ? pauseBtn.left : actionBtn.left
+                    anchors { left: fileIcon.right; right: pauseBtn.visible ? pauseBtn.left : (revealBtn.visible ? revealBtn.left : actionBtn.left)
                               leftMargin: Theme.s3; rightMargin: Theme.s2
                               verticalCenter: parent.verticalCenter }
                     spacing: 4
@@ -115,7 +115,7 @@ SidePanel {
 
                 IconButton {
                     id: pauseBtn
-                    anchors { right: actionBtn.left; rightMargin: Theme.s1; verticalCenter: parent.verticalCenter }
+                    anchors { right: revealBtn.visible ? revealBtn.left : actionBtn.left; rightMargin: Theme.s1; verticalCenter: parent.verticalCenter }
                     visible: row.activeDownload
                     iconName: row.paused ? "rotate-cw" : "minus"
                     size: 30
@@ -125,9 +125,19 @@ SidePanel {
                 }
 
                 IconButton {
+                    id: revealBtn
+                    anchors { right: actionBtn.left; rightMargin: Theme.s1; verticalCenter: parent.verticalCenter }
+                    visible: row.finished && !row.failed
+                    iconName: "folder"
+                    size: 30
+                    Accessible.name: qsTr("Показать в папке")
+                    onClicked: DownloadModel.reveal(row.downloadId)
+                }
+
+                IconButton {
                     id: actionBtn
                     anchors { right: parent.right; rightMargin: Theme.s2; verticalCenter: parent.verticalCenter }
-                    iconName: row.finished && !row.failed ? "download" : "x"
+                    iconName: row.finished && !row.failed ? "play" : "x"
                     size: 30
                     Accessible.name: row.finished && !row.failed ? qsTr("Открыть файл") : qsTr("Отменить")
                     onClicked: {

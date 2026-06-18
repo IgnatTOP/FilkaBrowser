@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(Filka
-    VERSION 3.2.3
+    VERSION 3.2.4
     DESCRIPTION "Filka Browser — next-generation premium browser"
     LANGUAGES CXX)
 

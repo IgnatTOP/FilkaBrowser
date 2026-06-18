@@ -38,6 +38,17 @@ Item {
              + "(document.head||document.documentElement).appendChild(s);}"
              + "s.textContent=" + JSON.stringify(css) + ";})();"
     }
+    function urlHost(value) {
+        try {
+            return new URL(value && value.toString ? value.toString() : value).hostname.toLowerCase()
+        } catch (e) {
+            return ""
+        }
+    }
+    function isCompatibilityBypassUrl(value) {
+        const host = urlHost(value)
+        return host === "music.yandex.ru" || host.endsWith(".music.yandex.ru")
+    }
 
     // Raised when the user picks "Inspect" so the shell can open dev tools.
     signal devToolsRequested()
@@ -121,13 +132,15 @@ Item {
                 // Per-tab mute, driven from the model (tab context menu). Report
                 // audio activity back so the strip can show a speaker glyph.
                 audioMuted: model.muted
-                onRecentlyAudibleChanged: root.tabsModel.updateAudible(index, recentlyAudible)
+                onRecentlyAudibleChanged: root.tabsModel.updateAudible(index, webView.recentlyAudible)
 
                 // Whether the *last* navigation failed — surfaces the error page.
                 property bool failed: false
                 property string failedUrl: ""
 
                 function runSponsorBlockSync() {
+                    if (root.isCompatibilityBypassUrl(url))
+                        return
                     const script = AdBlockManager.sponsorBlockEnabled
                                    ? AdBlockManager.sponsorBlockScriptForUrl(url.toString())
                                    : AdBlockManager.sponsorBlockDisableScript()
@@ -161,20 +174,24 @@ Item {
                     if (info.status === WebEngineView.LoadStartedStatus) {
                         failed = false
                         runJavaScript(root.scrollbarScript())
-                        const earlyCosmeticScript = AdBlockManager.earlyCosmeticScript()
-                        if (earlyCosmeticScript.length > 0)
-                            runJavaScript(earlyCosmeticScript)
+                        if (!root.isCompatibilityBypassUrl(info.url)) {
+                            const earlyCosmeticScript = AdBlockManager.earlyCosmeticScript()
+                            if (earlyCosmeticScript.length > 0)
+                                runJavaScript(earlyCosmeticScript)
+                        }
                     } else if (info.status === WebEngineView.LoadSucceededStatus) {
                         failed = false
                         runJavaScript(root.scrollbarScript())
                         if (root.recordHistory)
                             HistoryModel.recordVisit(info.url, title)
-                        const earlyCosmeticScript = AdBlockManager.earlyCosmeticScript()
-                        if (earlyCosmeticScript.length > 0)
-                            runJavaScript(earlyCosmeticScript)
-                        const cosmeticScript = AdBlockManager.cosmeticScriptForUrl(info.url)
-                        if (cosmeticScript.length > 0)
-                            runJavaScript(cosmeticScript)
+                        if (!root.isCompatibilityBypassUrl(info.url)) {
+                            const earlyCosmeticScript = AdBlockManager.earlyCosmeticScript()
+                            if (earlyCosmeticScript.length > 0)
+                                runJavaScript(earlyCosmeticScript)
+                            const cosmeticScript = AdBlockManager.cosmeticScriptForUrl(info.url)
+                            if (cosmeticScript.length > 0)
+                                runJavaScript(cosmeticScript)
+                        }
                         runSponsorBlockSync()
                     } else if (info.status === WebEngineView.LoadFailedStatus) {
                         // Ignore user-initiated aborts (stop button, fast re-nav).

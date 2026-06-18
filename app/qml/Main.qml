@@ -51,7 +51,7 @@ QtObject {
         }
         const window = browserWindowComponent.createObject(root, props)
         if (!window) {
-            console.warn("Filka: cannot open browser window")
+            console.warn("Filka: cannot open browser window", browserWindowComponent.errorString())
             return
         }
         windows.push(window)
@@ -85,7 +85,10 @@ QtObject {
         httpCacheMaximumSize: 256 * 1024 * 1024
         downloadPath: AppSettings.downloadPath
         httpAcceptLanguage: Qt.locale().name.replace("_", "-")
-        spellCheckEnabled: true
+        httpUserAgent: Qt.platform.os === "windows"
+                       ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                       : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        spellCheckEnabled: false
         onDownloadRequested: (download) => root.handleSharedDownload(download)
     }
 
