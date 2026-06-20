@@ -11,6 +11,7 @@ SidePanel {
 
     signal navigate(string url)
     property bool confirmClear: false
+    property var pendingDeletedEntry: null
 
     // Human-friendly relative time ("5 мин назад", "вчера", or a date).
     function relTime(dt) {
@@ -160,8 +161,80 @@ SidePanel {
                     visible: opacity > 0.01
                     iconName: "x"; size: 26; iconSize: 13
                     Accessible.name: qsTr("Удалить запись")
-                    onClicked: HistoryModel.removeEntry(row.index)
+                    onClicked: {
+                        root.pendingDeletedEntry = {
+                            index: row.index,
+                            title: row.title,
+                            url: row.url,
+                            lastVisit: row.lastVisit
+                        }
+                        HistoryModel.removeEntry(row.index)
+                        undoToast.open()
+                    }
                     Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: undoToast
+        parent: Overlay.overlay
+        modal: false
+        focus: false
+        closePolicy: Popup.NoAutoClose
+        x: Math.round((parent.width - width) / 2)
+        y: parent.height - height - Theme.s6
+        padding: Theme.s2
+        implicitWidth: toastBody.implicitWidth
+        implicitHeight: toastBody.implicitHeight
+
+        Timer {
+            id: undoToastTimer
+            interval: 5000
+            onTriggered: undoToast.close()
+        }
+
+        onOpened: undoToastTimer.restart()
+        onClosed: undoToastTimer.stop()
+
+        background: Rectangle {
+            radius: Theme.radiusPill
+            color: Theme.bgRaised
+            border.width: 1
+            border.color: Theme.glassStroke
+        }
+
+        contentItem: Row {
+            id: toastBody
+            spacing: Theme.s2
+            Icon {
+                anchors.verticalCenter: parent.verticalCenter
+                name: "trash-2"
+                size: 15
+                color: Theme.textMuted
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Запись удалена")
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSm
+            }
+
+            GlassButton {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Отменить")
+                onClicked: {
+                    if (root.pendingDeletedEntry) {
+                        HistoryModel.restoreEntry(root.pendingDeletedEntry.index,
+                                                  root.pendingDeletedEntry.title,
+                                                  root.pendingDeletedEntry.url,
+                                                  root.pendingDeletedEntry.lastVisit)
+                        root.pendingDeletedEntry = null
+                    }
+                    undoToast.close()
                 }
             }
         }

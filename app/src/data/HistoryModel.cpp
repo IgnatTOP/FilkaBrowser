@@ -237,6 +237,45 @@ void HistoryModel::removeEntry(int index)
     }
 }
 
+bool HistoryModel::restoreEntry(int index, const QString &title, const QUrl &url,
+                                const QDateTime &lastVisit)
+{
+    if (!url.isValid() || (url.scheme() != QLatin1String("http")
+                           && url.scheme() != QLatin1String("https")))
+        return false;
+
+    const QString key = url.toString();
+    if (indexOfUrl(key) >= 0)
+        return false;
+
+    Entry e;
+    e.url = key;
+    e.title = title;
+    e.lastVisit = lastVisit.isValid() ? lastVisit.toUTC() : QDateTime::currentDateTimeUtc();
+
+    const int boundedIndex = std::clamp(index, 0, int(m_entries.size()));
+    beginInsertRows({}, boundedIndex, boundedIndex);
+    m_entries.insert(boundedIndex, e);
+    endInsertRows();
+    emit countChanged();
+
+    if (m_db.isOpen()) {
+        QSqlQuery q(m_db);
+        q.prepare(QStringLiteral(
+            "INSERT INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, 1) "
+            "ON CONFLICT(url) DO NOTHING"));
+        q.addBindValue(key);
+        q.addBindValue(e.title);
+        q.addBindValue(e.lastVisit.toMSecsSinceEpoch());
+        if (!q.exec()) {
+            qWarning("Filka: could not restore history entry: %s",
+                     qPrintable(q.lastError().text()));
+        }
+    }
+
+    return true;
+}
+
 void HistoryModel::clear()
 {
     if (m_entries.isEmpty())

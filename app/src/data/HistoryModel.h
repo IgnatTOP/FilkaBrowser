@@ -45,6 +45,8 @@ public:
     // URLs are bumped to the top with an incremented visit count.
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
     Q_INVOKABLE void removeEntry(int index);
+    Q_INVOKABLE bool restoreEntry(int index, const QString &title, const QUrl &url,
+                                   const QDateTime &lastVisit);
     Q_INVOKABLE void clear();
 
     // Address-bar autocomplete: case-insensitive substring match on url/title,
