@@ -1,5 +1,6 @@
 #include "WorkspaceModel.h"
 
+#include <algorithm>
 #include <utility>
 
 #include <QVariantMap>
@@ -369,6 +370,82 @@ void WorkspaceModel::setWorkspaceAccent(int index, const QColor &accent)
     if (index == m_activeIndex)
         emit activeIndexChanged();
     saveWorkspaceDefinitions();
+}
+
+QVariantMap WorkspaceModel::workspaceUndoSnapshot(int index) const
+{
+    if (!valid(index) || !m_items.at(index).tabs)
+        return {};
+
+    const Workspace &ws = m_items.at(index);
+    return QVariantMap{
+        {QStringLiteral("index"), index},
+        {QStringLiteral("name"), ws.name},
+        {QStringLiteral("glyph"), ws.glyph},
+        {QStringLiteral("accent"), ws.accent},
+        {QStringLiteral("tabs"), ws.tabs->tabUrls()},
+        {QStringLiteral("activeTab"), ws.tabs->activeIndex()},
+    };
+}
+
+bool WorkspaceModel::canRestoreWorkspace(const QVariantMap &snapshot) const
+{
+    const QString name = snapshot.value(QStringLiteral("name")).toString().trimmed();
+    const QString glyph = snapshot.value(QStringLiteral("glyph")).toString().trimmed();
+    const QColor accent = snapshot.value(QStringLiteral("accent")).value<QColor>();
+    const QStringList tabs = snapshot.value(QStringLiteral("tabs")).toStringList();
+    return !name.isEmpty() && !glyph.isEmpty() && accent.isValid() && !tabs.isEmpty();
+}
+
+bool WorkspaceModel::removeWorkspaceIfRestorable(int index)
+{
+    if (!valid(index) || m_items.size() <= 1)
+        return false;
+    const QVariantMap snapshot = workspaceUndoSnapshot(index);
+    if (!canRestoreWorkspace(snapshot))
+        return false;
+
+    removeWorkspace(index);
+    return true;
+}
+
+bool WorkspaceModel::restoreWorkspace(const QVariantMap &snapshot)
+{
+    if (!canRestoreWorkspace(snapshot))
+        return false;
+
+    const QString name = snapshot.value(QStringLiteral("name")).toString().trimmed();
+    const QString glyph = snapshot.value(QStringLiteral("glyph")).toString().trimmed();
+    const QColor accent = snapshot.value(QStringLiteral("accent")).value<QColor>();
+    const QStringList tabs = snapshot.value(QStringLiteral("tabs")).toStringList();
+    const int activeTab = snapshot.value(QStringLiteral("activeTab"), 0).toInt();
+    const int row = std::clamp(snapshot.value(QStringLiteral("index"), m_items.size()).toInt(),
+                               0, int(m_items.size()));
+
+    const QString previousActiveName = activeName();
+    beginInsertRows({}, row, row);
+    Workspace ws;
+    ws.name = name;
+    ws.glyph = glyph;
+    ws.accent = accent;
+    ws.tabs = new TabModel(this);
+    ws.tabs->restore(tabs, activeTab);
+    connectTabAutosave(ws.tabs);
+    connectTabSummarySignals(ws.tabs);
+    m_items.insert(row, ws);
+    endInsertRows();
+
+    if (row <= m_activeIndex)
+        ++m_activeIndex;
+    m_activeIndex = row;
+    emit countChanged();
+    emit activeIndexChanged();
+    emit tabSummariesChanged();
+    if (activeName() != previousActiveName)
+        emit activeNameChanged();
+    saveWorkspaceDefinitions();
+    scheduleSave();
+    return true;
 }
 
 void WorkspaceModel::removeWorkspace(int index)

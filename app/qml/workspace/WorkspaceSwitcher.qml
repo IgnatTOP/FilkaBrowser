@@ -19,6 +19,35 @@ Item {
         nameField.selectAll()
     }
 
+    property var pendingRestore: null
+
+    function requestWorkspaceRemoval(index) {
+        if (!workspaces || !workspaces.workspaceUndoSnapshot || !workspaces.canRestoreWorkspace
+                || !workspaces.removeWorkspaceIfRestorable)
+            return
+
+        var snapshot = workspaces.workspaceUndoSnapshot(index)
+        if (!workspaces.canRestoreWorkspace(snapshot))
+            return
+
+        pendingRestore = snapshot
+        if (workspaces.removeWorkspaceIfRestorable(index)) {
+            undoToast.open()
+            undoTimer.restart()
+        } else {
+            pendingRestore = null
+        }
+    }
+
+    function undoWorkspaceRemoval() {
+        if (!pendingRestore || !workspaces || !workspaces.restoreWorkspace)
+            return
+        undoTimer.stop()
+        if (workspaces.restoreWorkspace(pendingRestore))
+            pendingRestore = null
+        undoToast.close()
+    }
+
     function saveEditor() {
         var name = nameField.text.trim()
         if (name.length === 0)
@@ -151,7 +180,9 @@ Item {
         MenuItem {
             text: qsTr("Удалить")
             enabled: root.workspaces && root.workspaces.count > 1
-            onTriggered: root.workspaces.removeWorkspace(menu.targetIndex)
+                     && root.workspaces.canRestoreWorkspace
+                     && root.workspaces.canRestoreWorkspace(root.workspaces.workspaceUndoSnapshot(menu.targetIndex))
+            onTriggered: root.requestWorkspaceRemoval(menu.targetIndex)
         }
     }
 
@@ -209,6 +240,63 @@ Item {
                     font.pixelSize: Theme.fontSizeXs
                     font.weight: Font.DemiBold
                 }
+            }
+        }
+    }
+    Timer {
+        id: undoTimer
+        interval: 7000
+        repeat: false
+        onTriggered: {
+            root.pendingRestore = null
+            undoToast.close()
+        }
+    }
+
+    Popup {
+        id: undoToast
+        modal: false
+        focus: false
+        width: Math.min(360, Math.max(260, toastRow.implicitWidth + Theme.s4 * 2))
+        height: 48
+        x: Math.max(Theme.s2, root.width - width - Theme.s2)
+        y: root.height + Theme.s2
+        padding: Theme.s2
+        closePolicy: Popup.NoAutoClose
+        onClosed: undoTimer.stop()
+        background: Rectangle {
+            radius: Theme.radiusMd
+            color: Theme.modalSurface
+            border.width: 1
+            border.color: Theme.outline
+        }
+        contentItem: Row {
+            id: toastRow
+            spacing: Theme.s2
+            anchors.verticalCenter: parent.verticalCenter
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.pendingRestore
+                      ? qsTr("Пространство «%1» удалено (%n вкладка)", "", root.pendingRestore.tabs ? root.pendingRestore.tabs.length : 0)
+                            .arg(root.pendingRestore.name)
+                      : qsTr("Пространство удалено")
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                elide: Text.ElideRight
+                width: Math.min(230, implicitWidth)
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Отменить")
+                color: Theme.accent
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                font.weight: Font.DemiBold
+
+                HoverHandler { id: undoHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.undoWorkspaceRemoval() }
             }
         }
     }

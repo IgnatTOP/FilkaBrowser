@@ -15,6 +15,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <qqmlregistration.h>
 
 #include "TabModel.h"
@@ -66,6 +67,10 @@ public:
     Q_INVOKABLE void renameWorkspace(int index, const QString &name);
     Q_INVOKABLE void setWorkspaceGlyph(int index, const QString &glyph);
     Q_INVOKABLE void setWorkspaceAccent(int index, const QColor &accent);
+    Q_INVOKABLE QVariantMap workspaceUndoSnapshot(int index) const;
+    Q_INVOKABLE bool canRestoreWorkspace(const QVariantMap &snapshot) const;
+    Q_INVOKABLE bool removeWorkspaceIfRestorable(int index);
+    Q_INVOKABLE bool restoreWorkspace(const QVariantMap &snapshot);
     Q_INVOKABLE void removeWorkspace(int index);
     Q_INVOKABLE void moveWorkspace(int from, int to);
     Q_INVOKABLE void resetWorkspaces();

@@ -136,6 +136,34 @@ private slots:
         QVERIFY(urls.contains(QStringLiteral("https://after-reset.example")));
     }
 
+    void workspaceRemoveCanBeRestoredFromSnapshot()
+    {
+        WorkspaceModel workspaces;
+        const int restoredIndex = workspaces.addWorkspace(QStringLiteral("Undoable"), QStringLiteral("sparkles"), QColor("#FF6A4D"));
+        TabModel *tabs = workspaces.activeTabs();
+        QVERIFY(tabs);
+        tabs->addTab(QUrl(QStringLiteral("https://restore.example/one")));
+        tabs->addTab(QUrl(QStringLiteral("https://restore.example/two")));
+        tabs->setActiveIndex(1);
+
+        const QVariantMap snapshot = workspaces.workspaceUndoSnapshot(restoredIndex);
+        QVERIFY(workspaces.canRestoreWorkspace(snapshot));
+        QVERIFY(workspaces.removeWorkspaceIfRestorable(restoredIndex));
+        QCOMPARE(workspaces.rowCount(), 4);
+
+        QVERIFY(workspaces.restoreWorkspace(snapshot));
+        QCOMPARE(workspaces.rowCount(), 5);
+        QCOMPARE(workspaces.activeIndex(), restoredIndex);
+        QCOMPARE(workspaces.activeName(), QStringLiteral("Undoable"));
+        QVERIFY(workspaces.activeTabs());
+        QCOMPARE(workspaces.activeTabs()->tabUrls(), QStringList({
+                     QStringLiteral("about:blank"),
+                     QStringLiteral("https://restore.example/one"),
+                     QStringLiteral("https://restore.example/two"),
+                 }));
+        QCOMPARE(workspaces.activeTabs()->activeIndex(), 1);
+    }
+
     void bookmarkToggleRejectsInvalidUrl()
     {
         BookmarkModel bookmarks;
