@@ -16,6 +16,7 @@
 #include <QQuickStyle>
 #include <QStandardPaths>
 #include <QSysInfo>
+#include <QSettings>
 #include <QtWebEngineQuick>
 
 #include <cstdio>
@@ -169,7 +170,8 @@ int main(int argc, char *argv[])
     // responsive heavy pages. Mirrors what premium Chromium-based browsers
     // (Brave, Arc, Edge) enable by default.
     if (qEnvironmentVariableIsEmpty("QTWEBENGINE_CHROMIUM_FLAGS")) {
-        qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
+        QSettings startupSettings;
+        QByteArray chromiumFlags =
                 // GPU compositing — the single biggest factor for smooth scroll
                 " --enable-gpu-compositing"
                 " --enable-gpu-rasterization"
@@ -184,15 +186,17 @@ int main(int argc, char *argv[])
                 " --disable-renderer-backgrounding"
                 " --disable-background-timer-throttling"
                 " --disable-backgrounding-occluded-windows"
-                // Desktop-browser behaviour for music/video apps.
-                " --autoplay-policy=no-user-gesture-required"
                 // Feature flags MUST be one comma-list: Chromium keeps only the
                 // last --enable-features=, so separate flags silently drop the
                 // earlier ones. Merged here: DNS prefetch, SharedArrayBuffer,
                 // back/forward cache (instant nav) and HW video decode.
                 " --enable-features=UseDnsHttpsSvcb,SharedArrayBuffer,"
                 "BackForwardCache,VaapiVideoDecodeLinuxGL,"
-                "OverlayScrollbar,CanvasOopRasterization");
+                "OverlayScrollbar,CanvasOopRasterization";
+        if (startupSettings.value(QStringLiteral("media/permissiveAutoplayEnabled"), false).toBool()) {
+            chromiumFlags += " --autoplay-policy=no-user-gesture-required";
+        }
+        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", chromiumFlags);
     }
 
     // High-refresh-rate friendly: let Qt pick the best swap behaviour and keep
