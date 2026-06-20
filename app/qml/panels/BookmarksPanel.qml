@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Layouts
 import Filka
 
 SidePanel {
@@ -8,13 +9,29 @@ SidePanel {
     title: qsTr("Закладки")
     signal navigate(string url)
 
+    property bool confirmClear: false
+    property var undoSnapshot: []
+
+    function clearWithUndo() {
+        root.undoSnapshot = BookmarkModel.all()
+        BookmarkModel.clear()
+        undoToast.message = qsTr("Закладки очищены")
+        undoToast.open()
+    }
+
     Column {
         anchors.fill: parent
         spacing: Theme.s2
 
         Item {
+            id: toolbar
             width: parent.width
             height: 30
+            Timer {
+                id: clearConfirmTimer
+                interval: 2200
+                onTriggered: root.confirmClear = false
+            }
             Text {
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                 text: BookmarkModel.count + " " + Theme.plural(BookmarkModel.count, qsTr("закладка"), qsTr("закладки"), qsTr("закладок"))
@@ -30,9 +47,19 @@ SidePanel {
                 enabled: BookmarkModel.count > 0
                 opacity: enabled ? 1 : 0.4
                 iconColor: Theme.danger
-                tooltip: qsTr("Очистить закладки")
-                Accessible.name: qsTr("Очистить закладки")
-                onClicked: BookmarkModel.clear()
+                active: root.confirmClear
+                tooltip: root.confirmClear ? qsTr("Подтвердить") : qsTr("Очистить закладки")
+                Accessible.name: root.confirmClear ? qsTr("Подтвердить очистку закладок") : qsTr("Очистить закладки")
+                onClicked: {
+                    if (!root.confirmClear) {
+                        root.confirmClear = true
+                        clearConfirmTimer.restart()
+                        return
+                    }
+                    clearConfirmTimer.stop()
+                    root.confirmClear = false
+                    root.clearWithUndo()
+                }
             }
         }
 
@@ -58,7 +85,7 @@ SidePanel {
         ListView {
             id: list
             width: parent.width
-            height: parent.height - 38
+            height: parent.height - toolbar.height - Theme.s2
             visible: BookmarkModel.count > 0
             clip: true
             spacing: 3
@@ -132,6 +159,59 @@ SidePanel {
                 Keys.onReturnPressed: root.navigate(row.url)
                 Keys.onEnterPressed: root.navigate(row.url)
                 Keys.onSpacePressed: root.navigate(row.url)
+            }
+        }
+    }
+
+    Popup {
+        id: undoToast
+        property string message: ""
+        parent: Overlay.overlay
+        modal: false
+        focus: false
+        closePolicy: Popup.NoAutoClose
+        x: Math.round((parent.width - width) / 2)
+        y: parent.height - height - Theme.s6
+        padding: 0
+        implicitWidth: toastBody.implicitWidth
+        implicitHeight: toastBody.implicitHeight
+        Timer {
+            id: undoToastTimer
+            interval: 5000
+            onTriggered: undoToast.close()
+        }
+        onOpened: undoToastTimer.restart()
+        onClosed: root.undoSnapshot = []
+        background: Rectangle {
+            radius: Theme.radiusPill
+            color: Theme.bgRaised
+            border.width: 1
+            border.color: Theme.glassStroke
+        }
+        contentItem: RowLayout {
+            id: toastBody
+            spacing: Theme.s2
+            anchors.margins: Theme.s2
+            Icon {
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                name: "bookmark"
+                size: 15
+                color: Theme.accent
+            }
+            Text {
+                text: undoToast.message
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSm
+            }
+            GlassButton {
+                text: qsTr("Отменить")
+                Accessible.name: qsTr("Восстановить очищенные закладки")
+                onClicked: {
+                    BookmarkModel.restore(root.undoSnapshot)
+                    undoToast.close()
+                }
             }
         }
     }

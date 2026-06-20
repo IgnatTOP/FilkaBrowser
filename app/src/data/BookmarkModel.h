@@ -46,6 +46,9 @@ public:
     Q_INVOKABLE void removeUrl(const QUrl &url);
     Q_INVOKABLE void removeAt(int index);
     Q_INVOKABLE void clear();
+    // Full-fidelity snapshot/restore for undo flows in QML.
+    Q_INVOKABLE QVariantList all() const;
+    Q_INVOKABLE void restore(const QVariantList &bookmarks);
 
     // Address-bar autocomplete: case-insensitive substring match on url/title.
     // Returns [{title, url}] maps, newest first.
