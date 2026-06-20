@@ -249,6 +249,43 @@ void TabModel::closeOthers(int index)
     emit changed();
 }
 
+void TabModel::closeToLeft(int index)
+{
+    if (!valid(index))
+        return;
+
+    bool removed = false;
+    bool removedActive = false;
+    int targetIndex = index;
+    int nextActive = m_activeIndex;
+
+    // Match the existing pinned-tab policy used by closeOthers/closeToRight:
+    // pinned tabs are preserved instead of being closed implicitly.
+    for (int i = index - 1; i >= 0; --i) {
+        if (m_tabs.at(i).pinned)
+            continue;
+
+        if (i == m_activeIndex)
+            removedActive = true;
+        else if (i < m_activeIndex)
+            --nextActive;
+
+        removeRow(i);
+        --targetIndex;
+        removed = true;
+    }
+
+    if (!removed)
+        return;
+
+    const int oldActive = m_activeIndex;
+    m_activeIndex = removedActive ? targetIndex : nextActive;
+    m_activeIndex = std::clamp(m_activeIndex, 0, int(m_tabs.size()) - 1);
+    if (removedActive || m_activeIndex != oldActive)
+        emit activeIndexChanged();
+    emit changed();
+}
+
 void TabModel::closeToRight(int index)
 {
     if (!valid(index))
