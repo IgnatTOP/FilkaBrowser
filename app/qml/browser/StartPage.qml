@@ -126,26 +126,6 @@ Item {
         spacing: Theme.s2
         opacity: 0
 
-        GlassCard {
-            width: weatherRow.implicitWidth + Theme.s4
-            height: 34
-            radius: Theme.radiusPill
-            Row {
-                id: weatherRow
-                anchors.centerIn: parent
-                spacing: 7
-                Icon { anchors.verticalCenter: parent.verticalCenter; name: "sun"; size: 15; color: Theme.brandLavender }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("21°C  Барселона")
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.Medium
-                }
-            }
-        }
-
         IconButton {
             iconName: "download"
             size: 34
