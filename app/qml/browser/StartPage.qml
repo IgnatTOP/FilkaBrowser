@@ -150,6 +150,7 @@ Item {
             iconName: "download"
             size: 34
             iconSize: 16
+            tooltip: qsTr("Открыть загрузки")
             Accessible.name: qsTr("Загрузки")
             onClicked: root.openPanel("downloads")
         }
@@ -157,6 +158,7 @@ Item {
             iconName: "history"
             size: 34
             iconSize: 16
+            tooltip: qsTr("Открыть историю")
             Accessible.name: qsTr("История")
             onClicked: root.openPanel("history")
         }
@@ -164,6 +166,7 @@ Item {
             iconName: "settings"
             size: 34
             iconSize: 16
+            tooltip: qsTr("Открыть настройки")
             Accessible.name: qsTr("Настройки")
             onClicked: root.openPanel("settings")
         }
