@@ -48,7 +48,20 @@ FocusScope {
     // ---- Suggestions ----
     property var suggestions: []       // [{ kind, title, url, label }]
     property int highlight: -1
+    readonly property bool suggestionsError: suggestionsUnavailable
+    property bool suggestionsUnavailable: false
     readonly property bool suggesting: field.activeFocus && suggestions.length > 0
+    readonly property bool showSuggestionsUnavailable: field.activeFocus && field.text.trim().length > 0
+                                                    && suggestionsUnavailable
+                                                    && AppSettings.networkSuggestionsEnabled
+                                                    && !root.looksLikeUrl(field.text.trim())
+
+    states: [
+        State {
+            name: "suggestionsUnavailable"
+            when: root.showSuggestionsUnavailable
+        }
+    ]
 
     // Live web suggestions (from the search engine's autocomplete service),
     // fetched on a debounce and cached against the text they belong to.
@@ -57,7 +70,7 @@ FocusScope {
 
     function rebuildSuggestions() {
         var t = field.text.trim()
-        if (t.length === 0) { suggestions = []; highlight = -1; return }
+        if (t.length === 0) { suggestions = []; highlight = -1; suggestionsUnavailable = false; return }
 
         var out = []
         // Leading action: navigate straight to a URL, or search the web.
@@ -113,28 +126,52 @@ FocusScope {
     }
 
     function fetchSuggestions(t) {
-        if (!AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
+        if (!AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t)) {
+            root.suggestionsUnavailable = false
             return
+        }
+        var requestQuery = t.toLowerCase()
+        root.suggestionsUnavailable = false
         var req = new XMLHttpRequest()
         // Google's "firefox" client returns clean JSON: ["query", ["s1","s2",...]].
         var url = "https://www.google.com/complete/search?client=firefox&q="
                 + encodeURIComponent(t)
         req.onreadystatechange = function() {
-            if (req.readyState !== XMLHttpRequest.DONE || req.status !== 200)
+            if (req.readyState !== XMLHttpRequest.DONE)
                 return
+            if (field.text.trim() !== t)
+                return
+            if (req.status !== 200) {
+                root.suggestionsUnavailable = true
+                root.rebuildSuggestions()
+                return
+            }
             try {
                 var data = JSON.parse(req.responseText)
                 if (Array.isArray(data) && Array.isArray(data[1])
-                    && ("" + data[0]).toLowerCase() === t.toLowerCase()) {
+                    && ("" + data[0]).toLowerCase() === requestQuery) {
                     root.netPhrases = data[1]
-                    root.netQuery = t.toLowerCase()
+                    root.netQuery = requestQuery
+                    root.suggestionsUnavailable = false
                     // Only refresh the panel if the user is still on this text.
-                    if (field.text.trim() === t)
-                        root.rebuildSuggestions()
+                    root.rebuildSuggestions()
+                } else {
+                    root.suggestionsUnavailable = true
+                    root.rebuildSuggestions()
                 }
-            } catch (e) { /* ignore malformed responses */ }
+            } catch (e) {
+                root.suggestionsUnavailable = true
+                root.rebuildSuggestions()
+            }
+        }
+        req.ontimeout = function() {
+            if (field.text.trim() !== t)
+                return
+            root.suggestionsUnavailable = true
+            root.rebuildSuggestions()
         }
         req.open("GET", url)
+        req.timeout = 4000
         req.send()
     }
 
@@ -200,11 +237,12 @@ FocusScope {
 
             onActiveFocusChanged: {
                 if (activeFocus) selectAll()
-                else { root.suggestions = []; root.highlight = -1 }
+                else { root.suggestions = []; root.highlight = -1; root.suggestionsUnavailable = false }
             }
             // textEdited fires only on user input, not on the displayUrl binding,
             // so suggestions never pop up while pages navigate on their own.
             onTextEdited: {
+                root.suggestionsUnavailable = false
                 root.rebuildSuggestions()
                 if (AppSettings.networkSuggestionsEnabled)
                     netDebounce.restart()
@@ -213,7 +251,7 @@ FocusScope {
             }
             onAccepted: root.acceptSuggestion(root.highlight)
             Keys.onEscapePressed: {
-                if (root.suggestions.length > 0) { root.suggestions = []; root.highlight = -1 }
+                if (root.suggestions.length > 0) { root.suggestions = []; root.highlight = -1; root.suggestionsUnavailable = false }
                 else { text = root.displayUrl; focus = false }
             }
             Keys.onDownPressed: root.moveHighlight(1)
@@ -257,6 +295,20 @@ FocusScope {
 
         contentItem: Column {
             spacing: 2
+            Text {
+                width: parent.width
+                leftPadding: Theme.s3
+                rightPadding: Theme.s3
+                topPadding: 4
+                bottomPadding: 4
+                visible: root.showSuggestionsUnavailable
+                text: qsTr("Сетевые подсказки недоступны, показаны история и закладки")
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                elide: Text.ElideRight
+            }
+
             Repeater {
                 model: root.suggestions
                 delegate: Rectangle {
