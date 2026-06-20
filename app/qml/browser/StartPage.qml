@@ -18,6 +18,8 @@ Item {
     property string dateText: ""
     property string greeting: ""
     property int editIndex: -1
+    property string linkTitleError: ""
+    property string linkUrlError: ""
     property var recentPages: []
     readonly property bool compact: width < 820
     readonly property real contentWidth: Math.min(760, Math.max(360, width - Theme.s7 * 2))
@@ -75,20 +77,47 @@ Item {
 
     function openLinkEditor(index, title, url) {
         editIndex = index
+        linkTitleError = ""
+        linkUrlError = ""
         linkTitle.text = title
         linkUrl.text = url
+        validateLinkEditorUrl()
         editor.open()
         linkTitle.forceActiveFocus()
         linkTitle.selectAll()
     }
 
+    function normalizedLinkEditorUrl() {
+        var rawUrl = linkUrl.text.trim()
+        if (rawUrl.length === 0) {
+            linkUrlError = qsTr("Введите адрес сайта")
+            return ""
+        }
+
+        var url = /^[a-z][a-z0-9+.-]*:/i.test(rawUrl) ? rawUrl : "https://" + rawUrl
+        try {
+            var parsed = new URL(url)
+            if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.hostname.length === 0) {
+                linkUrlError = qsTr("Введите адрес сайта")
+                return ""
+            }
+            linkUrlError = ""
+            return parsed.href
+        } catch (e) {
+            linkUrlError = qsTr("Введите адрес сайта")
+            return ""
+        }
+    }
+
+    function validateLinkEditorUrl() {
+        return normalizedLinkEditorUrl().length > 0
+    }
+
     function saveLinkEditor() {
         var title = linkTitle.text.trim()
-        var url = linkUrl.text.trim()
+        var url = normalizedLinkEditorUrl()
         if (url.length === 0)
             return
-        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url))
-            url = "https://" + url
         if (editIndex >= 0)
             QuickLinkModel.update(editIndex, title, url)
         else
@@ -675,9 +704,21 @@ Item {
                     radius: Theme.radiusMd
                     color: linkUrl.activeFocus ? Theme.surfaceAlt : Theme.card
                     border.width: 1
-                    border.color: linkUrl.activeFocus ? Theme.accent : Theme.outline
+                    border.color: root.linkUrlError.length > 0 ? Theme.danger
+                                : linkUrl.activeFocus ? Theme.accent
+                                                      : Theme.outline
                 }
+                onTextChanged: root.validateLinkEditorUrl()
                 onAccepted: root.saveLinkEditor()
+            }
+            Text {
+                Layout.fillWidth: true
+                visible: root.linkUrlError.length > 0
+                text: root.linkUrlError
+                color: Theme.danger
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                wrapMode: Text.WordWrap
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -695,14 +736,17 @@ Item {
                     }
                 }
                 Pill {
+                    id: saveLinkButton
                     implicitHeight: 34
                     accessibleName: qsTr("Сохранить быструю ссылку")
-                    fillColor: Theme.accent
-                    strokeWidth: 0
+                    interactive: root.linkUrlError.length === 0 && linkUrl.text.trim().length > 0
+                    opacity: interactive ? 1 : 0.45
+                    fillColor: interactive ? Theme.accent : Theme.surfaceAlt
+                    strokeWidth: interactive ? 0 : 1
                     onClicked: root.saveLinkEditor()
                     Text {
                         text: qsTr("Сохранить")
-                        color: Theme.accentForeground
+                        color: saveLinkButton.interactive ? Theme.accentForeground : Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeXs
                         font.weight: Font.DemiBold
