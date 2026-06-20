@@ -193,6 +193,28 @@ private slots:
         links.remove(0);
         QCOMPARE(links.rowCount(), 4);
     }
+    void quickLinksUndoRestoreClampsAfterOtherChanges()
+    {
+        QuickLinkModel links;
+        const QVariantMap removed = links.takeForUndo(1);
+
+        QCOMPARE(links.rowCount(), 3);
+        QCOMPARE(removed.value(QStringLiteral("index")).toInt(), 1);
+        QCOMPARE(removed.value(QStringLiteral("title")).toString(), QStringLiteral("GitHub"));
+        QCOMPARE(removed.value(QStringLiteral("url")).toString(), QStringLiteral("https://github.com"));
+
+        links.add(QStringLiteral("Qt"), QUrl(QStringLiteral("https://qt.io")));
+        links.move(3, 0);
+        links.restoreForUndo(removed.value(QStringLiteral("index")).toInt(),
+                             removed.value(QStringLiteral("title")).toString(),
+                             QUrl(removed.value(QStringLiteral("url")).toString()));
+
+        const QVariantList all = links.search(QString(), 10);
+        QCOMPARE(links.rowCount(), 5);
+        QCOMPARE(all.at(1).toMap().value(QStringLiteral("title")).toString(),
+                 QStringLiteral("GitHub"));
+    }
+
 };
 
 QTEST_GUILESS_MAIN(TabModelTest)

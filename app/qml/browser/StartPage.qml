@@ -19,6 +19,7 @@ Item {
     property string greeting: ""
     property int editIndex: -1
     property var recentPages: []
+    property var pendingDeletedQuickLink: null
     readonly property bool compact: width < 820
     readonly property real contentWidth: Math.min(760, Math.max(360, width - Theme.s7 * 2))
     readonly property int visibleDownloadCount: privateMode ? DownloadModel.count : DownloadModel.publicCount
@@ -80,6 +81,41 @@ Item {
         editor.open()
         linkTitle.forceActiveFocus()
         linkTitle.selectAll()
+    }
+
+    function deleteQuickLink(index) {
+        if (pendingDeletedQuickLink !== null)
+            commitQuickLinkDeletion()
+
+        var removed = QuickLinkModel.takeForUndo(index)
+        if (!removed || removed.url === undefined)
+            return
+
+        pendingDeletedQuickLink = {
+            index: removed.index,
+            title: removed.title,
+            url: removed.url
+        }
+        quickLinkUndoTimer.restart()
+    }
+
+    function undoQuickLinkDeletion() {
+        if (pendingDeletedQuickLink === null)
+            return
+
+        var removed = pendingDeletedQuickLink
+        pendingDeletedQuickLink = null
+        quickLinkUndoTimer.stop()
+        QuickLinkModel.restoreForUndo(removed.index, removed.title, removed.url)
+    }
+
+    function commitQuickLinkDeletion() {
+        if (pendingDeletedQuickLink === null)
+            return
+
+        pendingDeletedQuickLink = null
+        quickLinkUndoTimer.stop()
+        QuickLinkModel.saveState()
     }
 
     function saveLinkEditor() {
@@ -331,7 +367,7 @@ Item {
                                     size: 24
                                     iconSize: 12
                                     Accessible.name: qsTr("Удалить быструю ссылку")
-                                    onClicked: QuickLinkModel.remove(tileWrap.index)
+                                    onClicked: root.deleteQuickLink(tileWrap.index)
                                 }
                             }
 
@@ -616,6 +652,67 @@ Item {
         OpacityAnimator { target: stage; from: 0; to: 1; duration: Motion.slow; easing.type: Motion.standard }
         ScaleAnimator { target: stage; from: 0.985; to: 1.0; duration: Motion.slow; easing.type: Motion.emphasized }
         OpacityAnimator { target: topActions; from: 0; to: 1; duration: Motion.slow; easing.type: Motion.standard }
+    }
+
+    Timer {
+        id: quickLinkUndoTimer
+        interval: 5000
+        repeat: false
+        onTriggered: root.commitQuickLinkDeletion()
+    }
+
+    GlassCard {
+        id: quickLinkUndoBar
+        z: 40
+        anchors {
+            horizontalCenter: parent.horizontalCenter
+            bottom: parent.bottom
+            bottomMargin: Theme.s5
+        }
+        width: Math.min(parent.width - Theme.s6, undoContent.implicitWidth + Theme.s5)
+        height: 48
+        radius: Theme.radiusPill
+        color: Theme.surface
+        border.color: Theme.outline
+        opacity: root.pendingDeletedQuickLink !== null ? 1 : 0
+        visible: opacity > 0
+        scale: root.pendingDeletedQuickLink !== null ? 1 : 0.98
+
+        Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
+        Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
+
+        RowLayout {
+            id: undoContent
+            anchors.fill: parent
+            anchors.leftMargin: Theme.s4
+            anchors.rightMargin: Theme.s2
+            spacing: Theme.s3
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Быстрая ссылка удалена")
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSm
+                font.weight: Font.Medium
+                elide: Text.ElideRight
+            }
+
+            Pill {
+                implicitHeight: 32
+                accessibleName: qsTr("Отменить удаление быстрой ссылки")
+                fillColor: Theme.accentSoft
+                strokeColor: Theme.accent
+                onClicked: root.undoQuickLinkDeletion()
+                Text {
+                    text: qsTr("Отменить")
+                    color: Theme.accentSoftForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeXs
+                    font.weight: Font.DemiBold
+                }
+            }
+        }
     }
 
     Popup {

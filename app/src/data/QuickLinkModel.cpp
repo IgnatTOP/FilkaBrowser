@@ -1,6 +1,6 @@
 #include "QuickLinkModel.h"
 
-#include <QVariantMap>
+#include <algorithm>
 
 namespace {
 struct DefaultLink {
@@ -79,6 +79,12 @@ void QuickLinkModel::installDefaults()
 
 void QuickLinkModel::save()
 {
+    if (m_saveSuspended) {
+        m_savePending = true;
+        return;
+    }
+
+    m_savePending = false;
     m_store.beginWriteArray(QStringLiteral("start/quickLinks"), m_items.size());
     for (int i = 0; i < m_items.size(); ++i) {
         m_store.setArrayIndex(i);
@@ -159,6 +165,51 @@ void QuickLinkModel::remove(int index)
     endRemoveRows();
     emit countChanged();
     emit changed();
+    save();
+}
+
+QVariantMap QuickLinkModel::takeForUndo(int index)
+{
+    if (index < 0 || index >= m_items.size())
+        return {};
+
+    const Item item = m_items.at(index);
+    beginRemoveRows({}, index, index);
+    m_items.removeAt(index);
+    endRemoveRows();
+    emit countChanged();
+    emit changed();
+    m_saveSuspended = true;
+    m_savePending = true;
+
+    return QVariantMap{
+        {QStringLiteral("index"), index},
+        {QStringLiteral("title"), item.title},
+        {QStringLiteral("url"), item.url},
+    };
+}
+
+void QuickLinkModel::restoreForUndo(int index, const QString &title, const QUrl &url)
+{
+    if (!isAcceptableUrl(url))
+        return;
+
+    const int row = std::clamp(index, 0, m_items.size());
+    beginInsertRows({}, row, row);
+    m_items.insert(row, {titleOrHost(title, url), normalizedUrl(url)});
+    endInsertRows();
+    emit countChanged();
+    emit changed();
+    m_saveSuspended = false;
+    save();
+}
+
+void QuickLinkModel::saveState()
+{
+    if (!m_saveSuspended && !m_savePending)
+        return;
+
+    m_saveSuspended = false;
     save();
 }
 

@@ -11,6 +11,7 @@
 #include <QString>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <qqmlregistration.h>
 
 class QuickLinkModel : public QAbstractListModel
@@ -39,6 +40,9 @@ public:
     Q_INVOKABLE void add(const QString &title, const QUrl &url);
     Q_INVOKABLE void update(int index, const QString &title, const QUrl &url);
     Q_INVOKABLE void remove(int index);
+    Q_INVOKABLE QVariantMap takeForUndo(int index);
+    Q_INVOKABLE void restoreForUndo(int index, const QString &title, const QUrl &url);
+    Q_INVOKABLE void saveState();
     Q_INVOKABLE void move(int from, int to);
     Q_INVOKABLE void resetDefaults();
     Q_INVOKABLE QVariantList search(const QString &query, int limit = 6) const;
@@ -55,6 +59,8 @@ private:
 
     QList<Item> m_items;
     QSettings m_store;
+    bool m_saveSuspended = false;
+    bool m_savePending = false;
 
     void load();
     void save();
