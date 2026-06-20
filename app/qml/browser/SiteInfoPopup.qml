@@ -137,7 +137,7 @@ FocusScope {
                     Layout.fillWidth: true
                     implicitHeight: 34
                     accessibleName: qsTr("Сбросить разрешения для всех сайтов")
-                    onClicked: BrowsingData.clearPermissions(browser.profile)
+                    onClicked: { BrowsingData.clearPermissions(browser.profile); AppSettings.clearSitePermissionDecisions() }
                     Text {
                         text: qsTr("Сбросить разрешения")
                         color: Theme.textPrimary

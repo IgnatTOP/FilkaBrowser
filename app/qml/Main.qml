@@ -80,7 +80,7 @@ QtObject {
         persistentStoragePath: AppSettings.webStoragePath()
         cachePath: AppSettings.webCachePath()
         persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
-        persistentPermissionsPolicy: WebEngineProfile.StoreOnDisk
+        persistentPermissionsPolicy: WebEngineProfile.AskEveryTime
         httpCacheType: WebEngineProfile.DiskHttpCache
         httpCacheMaximumSize: 256 * 1024 * 1024
         downloadPath: AppSettings.downloadPath

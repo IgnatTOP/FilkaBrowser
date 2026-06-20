@@ -383,6 +383,7 @@ Item {
                     profile: root.profile
                     tabsModel: model.tabs
                     recordHistory: !root.privateMode
+                    privateMode: root.privateMode
                     defaultZoom: AppSettings.defaultZoom
                     showWeb: !root.atHome
                     roundedWebClip: !shell.fullScreen   // rounded page card
@@ -433,7 +434,9 @@ Item {
                 }
                 width: Math.min(760, parent.width - Theme.s6)
                 permission: shell.pendingPermission
+                privateMode: root.privateMode
                 onDecided: shell.pendingPermission = null
+                onOpenSiteSettings: { shell.pendingPermission = null; shell.activeOverlay = "siteInfo" }
             }
 
             Item {

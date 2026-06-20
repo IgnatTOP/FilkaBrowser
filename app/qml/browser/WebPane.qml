@@ -12,6 +12,7 @@ Item {
     property var profile
     property Item activeView: null
     property bool recordHistory: true
+    property bool privateMode: false
     property real defaultZoom: 1.0
     property bool roundedWebClip: false
 
@@ -226,6 +227,19 @@ Item {
                     root.fullScreenRequested(request.toggleOn, webView)
                 }
                 onPermissionRequested: function(permission) {
+                    if (!permission || !permission.isValid)
+                        return
+                    if (!root.privateMode) {
+                        const decision = AppSettings.sitePermissionDecision(permission.origin.toString(), permission.permissionType)
+                        if (decision === "allow") {
+                            permission.grant()
+                            return
+                        }
+                        if (decision === "block") {
+                            permission.deny()
+                            return
+                        }
+                    }
                     root.permissionRequested(permission)
                 }
                 onPdfPrintingFinished: function(path, success) {

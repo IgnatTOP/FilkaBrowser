@@ -105,6 +105,10 @@ public:
     Q_INVOKABLE QString downloadDir() const;
     Q_INVOKABLE QString webStoragePath() const;
     Q_INVOKABLE QString webCachePath() const;
+    Q_INVOKABLE QString sitePermissionDecision(const QString &origin, int permissionType) const;
+    Q_INVOKABLE void setSitePermissionDecision(const QString &origin, int permissionType, const QString &decision);
+    Q_INVOKABLE void clearSitePermissionDecision(const QString &origin, int permissionType);
+    Q_INVOKABLE void clearSitePermissionDecisions();
 
 signals:
     void onboardedChanged();

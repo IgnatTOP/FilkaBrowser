@@ -65,6 +65,33 @@ QString defaultDisplayName()
     return user;
 }
 
+QString permissionOriginKey(const QString &origin)
+{
+    const QUrl url(origin);
+    if (!url.isValid() || url.host().isEmpty())
+        return origin.trimmed().toLower();
+
+    QString key = url.scheme().toLower() + QStringLiteral("://") + url.host().toLower();
+    if (url.port() >= 0)
+        key += QStringLiteral(":") + QString::number(url.port());
+    return key;
+}
+
+QString permissionDecisionKey(const QString &origin, int permissionType)
+{
+    QString key = permissionOriginKey(origin);
+    key.replace(QLatin1Char('/'), QLatin1Char('_'));
+    return QStringLiteral("permissions/sites/%1/%2").arg(key, QString::number(permissionType));
+}
+
+QString normalizedPermissionDecision(const QString &decision)
+{
+    const QString clean = decision.trimmed().toLower();
+    if (clean == QLatin1String("allow") || clean == QLatin1String("block"))
+        return clean;
+    return QString();
+}
+
 QString normalizedWallpaperPreset(const QString &value)
 {
     const QString preset = value.trimmed().toLower();
@@ -359,4 +386,36 @@ QString AppSettings::searchUrl(const QString &query) const
     }
     // Fall back to the first engine if the stored name is unknown.
     return QString::fromLatin1(kEngines[0].query).arg(encoded);
+}
+
+QString AppSettings::sitePermissionDecision(const QString &origin, int permissionType) const
+{
+    return normalizedPermissionDecision(
+        m_store.value(permissionDecisionKey(origin, permissionType)).toString());
+}
+
+void AppSettings::setSitePermissionDecision(const QString &origin, int permissionType, const QString &decision)
+{
+    const QString normalized = normalizedPermissionDecision(decision);
+    if (normalized.isEmpty()) {
+        clearSitePermissionDecision(origin, permissionType);
+        return;
+    }
+    m_store.setValue(permissionDecisionKey(origin, permissionType), normalized);
+    m_store.sync();
+}
+
+void AppSettings::clearSitePermissionDecision(const QString &origin, int permissionType)
+{
+    m_store.remove(permissionDecisionKey(origin, permissionType));
+    m_store.sync();
+}
+
+
+void AppSettings::clearSitePermissionDecisions()
+{
+    m_store.beginGroup(QStringLiteral("permissions/sites"));
+    m_store.remove(QString());
+    m_store.endGroup();
+    m_store.sync();
 }
