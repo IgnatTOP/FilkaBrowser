@@ -43,7 +43,7 @@ QtObject {
         DownloadModel.acceptDownload(download, AppSettings.downloadPath, name, false)
     }
 
-    function openWindow(privateWindow) {
+    function openWindow(privateWindow, initialUrl) {
         const props = {
             "privateMode": privateWindow === true,
             "windowManager": root,
@@ -55,6 +55,8 @@ QtObject {
             return
         }
         windows.push(window)
+        if (initialUrl && initialUrl.toString().length > 0 && window.browserView)
+            window.browserView.navigate(initialUrl)
     }
 
     function releaseWindow(window) {
@@ -98,6 +100,6 @@ QtObject {
 
     Component.onCompleted: {
         AdBlockManager.attachProfile(sharedProfile)
-        openWindow(false)
+        openWindow(false, "")
     }
 }

@@ -53,6 +53,7 @@ Item {
     // Raised when the user picks "Inspect" so the shell can open dev tools.
     signal devToolsRequested()
     signal pictureInPictureRequested()
+    signal openLinkInNewWindowRequested(url linkUrl)
     // A page asked to enter/leave HTML fullscreen (video players, slideshows).
     signal fullScreenRequested(bool on, var view)
     // A page wants a permission (camera, mic, geolocation, notifications...).
@@ -207,7 +208,9 @@ Item {
                 // the request handed a live view via openIn(), or the login
                 // never completes — so always create the tab, then bind it.
                 onNewWindowRequested: function(request) {
-                    var i = root.tabsModel.addTab(request.requestedUrl, true)
+                    var destination = request.destination
+                    var inBackground = destination === WebEngineNewWindowRequest.InNewBackgroundTab
+                    var i = root.tabsModel.addTabAfter(index, request.requestedUrl, !inBackground)
                     var view = rep.itemAt(i)
                     if (view)
                         request.openIn(view)
@@ -316,5 +319,6 @@ Item {
         tabsModel: root.tabsModel
         onInspectRequested: root.devToolsRequested()
         onPictureInPictureRequested: root.pictureInPictureRequested()
+        onOpenLinkInNewWindowRequested: (linkUrl) => root.openLinkInNewWindowRequested(linkUrl)
     }
 }
