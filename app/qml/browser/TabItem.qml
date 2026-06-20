@@ -24,9 +24,18 @@ Rectangle {
     // The speaker affordance shows when a tab plays audio or is muted.
     readonly property bool showAudio: (root.audible || root.muted) && !root.compact
 
-    // Whether the close affordance should be offered right now.
-    readonly property bool showClose: !root.pinned && (hover.hovered || root.active)
-    // In compact mode the close button replaces the favicon on hover/active.
+    // Compact tabs should not swap their favicon for a close button the instant
+    // the pointer passes over them. Reveal it immediately for the active tab,
+    // but require a short hover dwell for inactive compact tabs.
+    property bool compactHoverCloseReady: false
+    readonly property bool compactHoverClose: root.compact && hover.hovered && root.compactHoverCloseReady
+
+    // Whether the close affordance should be offered right now. Non-compact tabs
+    // keep the roomy, immediate hover close button; compact tabs only show it
+    // when active or after the hover dwell. Pinned tabs never expose this
+    // ordinary close affordance.
+    readonly property bool showClose: !root.pinned && (root.active || (!root.compact && hover.hovered) || root.compactHoverClose)
+    // In compact mode the close button replaces the favicon on active/delayed hover.
     readonly property bool compactClose: root.compact && showClose
 
     radius: Theme.radiusMd
@@ -53,8 +62,43 @@ Rectangle {
         }
     }
 
-    HoverHandler { id: hover }
+    Timer {
+        id: compactHoverCloseTimer
+        interval: 360
+        repeat: false
+        onTriggered: root.compactHoverCloseReady = root.compact && hover.hovered
+    }
+
+    HoverHandler {
+        id: hover
+        onHoveredChanged: {
+            root.compactHoverCloseReady = false
+            compactHoverCloseTimer.stop()
+            if (hovered && root.compact && !root.active)
+                compactHoverCloseTimer.restart()
+        }
+    }
+
+    onCompactChanged: {
+        root.compactHoverCloseReady = false
+        compactHoverCloseTimer.stop()
+        if (root.compact && hover.hovered && !root.active)
+            compactHoverCloseTimer.restart()
+    }
+    onActiveChanged: {
+        if (root.active || !hover.hovered) {
+            root.compactHoverCloseReady = false
+            compactHoverCloseTimer.stop()
+        } else if (root.compact) {
+            compactHoverCloseTimer.restart()
+        }
+    }
+
     TapHandler { onTapped: root.activated() }
+    TapHandler {
+        acceptedButtons: Qt.MiddleButton
+        onTapped: root.closed()
+    }
     TapHandler {
         acceptedButtons: Qt.RightButton
         onTapped: (ev) => root.contextRequested(ev.position.x, ev.position.y)
