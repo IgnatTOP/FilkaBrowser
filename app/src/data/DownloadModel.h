@@ -54,6 +54,10 @@ public:
 
     Q_INVOKABLE int acceptDownload(QObject *download, const QString &directory,
                                    const QString &fileName, bool privateDownload);
+    Q_INVOKABLE bool canNormalizeDirectory(const QString &directory) const;
+    Q_INVOKABLE bool directoryExists(const QString &directory) const;
+    Q_INVOKABLE bool createDirectory(const QString &directory) const;
+    Q_INVOKABLE QString normalizedDirectoryPath(const QString &directory) const;
     Q_INVOKABLE void pause(int id);
     Q_INVOKABLE void resume(int id);
     Q_INVOKABLE void cancel(int id);
