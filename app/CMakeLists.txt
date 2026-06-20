@@ -107,6 +107,8 @@ qt_add_qml_module(filka
         src/data/AppSettings.cpp
         src/data/BrowsingData.h
         src/data/BrowsingData.cpp
+        src/data/SiteDataHelper.h
+        src/data/SiteDataHelper.cpp
         src/import/BrowserImporter.h
         src/import/BrowserImporter.cpp
         src/media/ScreenshotHelper.h

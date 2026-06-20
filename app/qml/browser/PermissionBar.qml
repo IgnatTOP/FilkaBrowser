@@ -10,6 +10,7 @@ Item {
     property var permission: null
     property bool active: permission !== null
     signal decided()
+    signal siteSettingsRequested()
 
     implicitHeight: active ? 52 : 0
     clip: true
@@ -67,6 +68,20 @@ Item {
             anchors { right: parent.right; rightMargin: Theme.s2; verticalCenter: parent.verticalCenter }
             spacing: Theme.s2
 
+            Pill {
+                anchors.verticalCenter: parent.verticalCenter
+                radius: Theme.radiusSm
+                implicitHeight: 30
+                hPadding: Theme.s3
+                fillColor: hovered ? Theme.hoverFill : Theme.surfaceAlt
+                accessibleName: qsTr("Открыть настройки сайта")
+                onClicked: root.siteSettingsRequested()
+                Text {
+                    text: qsTr("Настройки сайта")
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSm
+                }
+            }
             Pill {
                 id: allowPill
                 anchors.verticalCenter: parent.verticalCenter
