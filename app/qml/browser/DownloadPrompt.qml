@@ -25,7 +25,15 @@ FocusScope {
     Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
 
     function close() {
-        shell.closeOverlays()
+        shell.activeOverlay = ""
+    }
+
+    function cancelDownload() {
+        const download = shell.pendingDownload
+        if (download && typeof download.cancel === "function")
+            download.cancel()
+        shell.pendingDownload = null
+        close()
     }
 
     function suggestedName() {
@@ -61,7 +69,7 @@ FocusScope {
         DownloadModel.acceptDownload(shell.pendingDownload, DownloadModel.normalizedDirectoryPath(directory.text), fileName.text.trim(), root.privateMode)
         shell.pendingDownload = null
         shell.activePanel = "downloads"
-        shell.activeOverlay = ""
+        close()
     }
 
     onOpenChanged: {
@@ -77,7 +85,7 @@ FocusScope {
     Rectangle {
         anchors.fill: parent
         color: Theme.scrim
-        TapHandler { onTapped: root.close() }
+        TapHandler { onTapped: root.cancelDownload() }
     }
 
     Rectangle {
@@ -119,7 +127,7 @@ FocusScope {
                     size: 28
                     iconSize: 13
                     Accessible.name: qsTr("Отмена")
-                    onClicked: root.close()
+                    onClicked: root.cancelDownload()
                 }
             }
 
@@ -224,7 +232,7 @@ FocusScope {
                 Pill {
                     implicitHeight: 34
                     accessibleName: qsTr("Отменить загрузку")
-                    onClicked: root.close()
+                    onClicked: root.cancelDownload()
                     Text {
                         text: qsTr("Отмена")
                         color: Theme.textSecondary
@@ -253,5 +261,5 @@ FocusScope {
         }
     }
 
-    Keys.onEscapePressed: root.close()
+    Keys.onEscapePressed: root.cancelDownload()
 }
