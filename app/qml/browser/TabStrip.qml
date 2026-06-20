@@ -22,6 +22,82 @@ Item {
 
     readonly property int tabCount: tabs ? tabs.count : 0
 
+    property bool dragActive: false
+    property int dragTabId: -1
+    property int dragSourceIndex: -1
+    property int dragCurrentIndex: -1
+    property int dragTargetIndex: -1
+    property real dragPointerOffset: 0
+    property real dragGhostX: 0
+    property real dragGhostY: 0
+    property real dragGhostW: 0
+    property real dragGhostH: 0
+    property string dragGhostTitle: ""
+    property url dragGhostIconUrl: ""
+    property bool dragGhostLoading: false
+    property bool dragGhostPinned: false
+    property bool dragGhostMuted: false
+    property bool dragGhostAudible: false
+    property bool dragGhostActive: false
+    property double lastDragMoveTime: 0
+    readonly property int dragMoveIntervalMs: 70
+
+    function dragStride() {
+        return (vertical ? tabH : slotW) + list.spacing
+    }
+
+    function tabIndexById(tabId) {
+        if (!tabs || tabId < 0)
+            return -1
+        return tabs.indexOfTabId(tabId)
+    }
+
+    function targetSlotFromContentPos(contentPos) {
+        if (!tabs || tabs.count <= 0)
+            return -1
+        var stride = dragStride()
+        if (stride <= 0)
+            return 0
+        return Math.max(0, Math.min(tabs.count - 1, Math.floor(contentPos / stride)))
+    }
+
+    function updateDragFromContentPoint(contentPoint, forceMove) {
+        if (!dragActive || !tabs)
+            return
+        var axis = vertical ? contentPoint.y : contentPoint.x
+        var target = targetSlotFromContentPos(axis)
+        dragTargetIndex = target
+        if (vertical) {
+            dragGhostX = list.x
+            dragGhostY = list.y + axis - dragPointerOffset - list.contentY
+        } else {
+            dragGhostX = list.x + axis - dragPointerOffset - list.contentX
+            dragGhostY = list.y
+        }
+
+        var current = tabIndexById(dragTabId)
+        if (current < 0 || target < 0 || current === target)
+            return
+
+        var now = Date.now()
+        if (!forceMove && now - lastDragMoveTime < dragMoveIntervalMs)
+            return
+
+        tabs.moveTab(current, target)
+        dragCurrentIndex = target
+        lastDragMoveTime = now
+    }
+
+    function resetDragGhost() {
+        dragActive = false
+        dragTabId = -1
+        dragSourceIndex = -1
+        dragCurrentIndex = -1
+        dragTargetIndex = -1
+        dragPointerOffset = 0
+        lastDragMoveTime = 0
+    }
+
     // Chrome-style close: while the cursor is over the horizontal strip, freeze
     // the per-tab width to the count captured at the moment of a close, so the
     // remaining tabs don't instantly widen mid-animation (which made them
@@ -124,49 +200,50 @@ Item {
             }
 
             // ---- Drag to reorder ----
-            // The handler moves the delegate itself; as it crosses into another
-            // tab's slot we reorder the model live (moveTab). The slot stride is
-            // the tab size plus the list spacing for the current orientation.
-            readonly property real slotStride: root.vertical ? (root.tabH + list.spacing)
-                                                             : (root.slotW + list.spacing)
-            function slotPos() { return tabDelegate.index * tabDelegate.slotStride }
-
-            function reorderToPointer() {
-                if (!dragH.active) return
-                var pos = root.vertical ? tabDelegate.y : tabDelegate.x
-                var to = Math.round(pos / tabDelegate.slotStride)
-                to = Math.max(0, Math.min(root.tabs.count - 1, to))
-                if (to !== tabDelegate.index)
-                    root.tabs.moveTab(tabDelegate.index, to)
-            }
-            onXChanged: if (!root.vertical) reorderToPointer()
-            onYChanged: if (root.vertical) reorderToPointer()
-
-            // "Magnet": a one-shot glide that snaps the dropped tab onto its exact
-            // grid slot. Kept as an explicit animation (not a Behavior) so it
-            // never competes with the ListView add/remove/displaced transitions
-            // during ordinary tab churn — it only runs on release.
-            NumberAnimation {
-                id: snapBack
-                target: tabDelegate
-                property: root.vertical ? "y" : "x"
-                duration: Motion.base
-                easing.type: Motion.emphasized
-            }
+            // DragHandler does not move the ListView delegate. It drives a
+            // separate ghost and computes target slots from pointer coordinates
+            // mapped into ListView content space, so model reorders do not feed
+            // back through delegate x/y changes.
+            opacity: root.dragActive && model.tabId === root.dragTabId ? 0.18 : 1
 
             DragHandler {
                 id: dragH
-                target: tabDelegate
+                target: null
                 xAxis.enabled: !root.vertical
                 yAxis.enabled: root.vertical
                 cursorShape: Qt.ClosedHandCursor
                 onActiveChanged: {
-                    if (active) { snapBack.stop(); return }
-                    // Glide the tab home from wherever the cursor let go.
-                    snapBack.property = root.vertical ? "y" : "x"
-                    snapBack.from = root.vertical ? tabDelegate.y : tabDelegate.x
-                    snapBack.to = tabDelegate.slotPos()
-                    snapBack.restart()
+                    if (active) {
+                        var p = tabDelegate.mapToItem(list.contentItem, centroid.position.x, centroid.position.y)
+                        root.dragActive = true
+                        root.dragTabId = model.tabId
+                        root.dragSourceIndex = tabDelegate.index
+                        root.dragCurrentIndex = tabDelegate.index
+                        root.dragTargetIndex = tabDelegate.index
+                        root.dragPointerOffset = root.vertical ? p.y - tabDelegate.y : p.x - tabDelegate.x
+                        root.dragGhostW = tabDelegate.width
+                        root.dragGhostH = tabDelegate.height
+                        root.dragGhostTitle = model.title
+                        root.dragGhostIconUrl = model.iconUrl
+                        root.dragGhostLoading = model.loading
+                        root.dragGhostPinned = model.pinned
+                        root.dragGhostMuted = model.muted
+                        root.dragGhostAudible = model.audible
+                        root.dragGhostActive = tabDelegate.active
+                        root.lastDragMoveTime = 0
+                        root.updateDragFromContentPoint(p, false)
+                    } else if (root.dragTabId === model.tabId) {
+                        var dropPoint = tabDelegate.mapToItem(list.contentItem, centroid.position.x, centroid.position.y)
+                        root.updateDragFromContentPoint(dropPoint, true)
+                        root.dragCurrentIndex = root.tabIndexById(root.dragTabId)
+                        root.resetDragGhost()
+                    }
+                }
+                onTranslationChanged: {
+                    if (!active || root.dragTabId !== model.tabId)
+                        return
+                    var p = tabDelegate.mapToItem(list.contentItem, centroid.position.x, centroid.position.y)
+                    root.updateDragFromContentPoint(p, false)
                 }
             }
         }
@@ -216,6 +293,28 @@ Item {
                 Keys.onSpacePressed: root.tabs.addTab()
             }
         }
+    }
+
+
+    TabItem {
+        id: dragGhost
+        visible: root.dragActive
+        x: root.dragGhostX
+        y: root.dragGhostY
+        width: root.dragGhostW
+        height: root.dragGhostH
+        z: 100
+        opacity: visible ? 0.92 : 0
+        compact: root.horizontalCompact
+        title: root.dragGhostTitle
+        iconUrl: root.dragGhostIconUrl
+        loading: root.dragGhostLoading
+        pinned: root.dragGhostPinned
+        muted: root.dragGhostMuted
+        audible: root.dragGhostAudible
+        active: root.dragGhostActive
+        enabled: false
+        scale: root.dragActive && !Motion.reducedMotion ? 1.03 : 1
     }
 
     // Shared right-click menu — its target index/state are set on open.
