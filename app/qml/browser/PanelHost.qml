@@ -11,6 +11,8 @@ Item {
     required property var browser
     required property ShellState shell
 
+    signal downloadsCleared(int count)
+
     anchors.fill: parent
 
     HistoryPanel {
@@ -23,7 +25,11 @@ Item {
         open: root.shell.activePanel === "downloads"
         privateMode: root.browser.privateMode
         onRequestClose: root.shell.closePanels()
-        onClearList: DownloadModel.clearCompleted(root.browser.privateMode)
+        onClearList: {
+            const removed = DownloadModel.clearCompleted(root.browser.privateMode)
+            if (removed > 0)
+                root.downloadsCleared(removed)
+        }
     }
 
     BookmarksPanel {
