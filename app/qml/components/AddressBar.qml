@@ -86,8 +86,8 @@ FocusScope {
 
         // Web autocomplete phrases — only when they still match the typed text
         // and the input isn't itself a URL. Each becomes a search action.
-        if (AppSettings.networkSuggestionsEnabled && !root.looksLikeUrl(t)
-                && root.netQuery === t.toLowerCase()) {
+        if (AppSettings.networkSuggestionsEnabled && AppSettings.networkSuggestionsSupported
+                && !root.looksLikeUrl(t) && root.netQuery === t.toLowerCase()) {
             var seenPhrase = {}
             seenPhrase[t.toLowerCase()] = true
             for (var k = 0; k < root.netPhrases.length && out.length < 9; ++k) {
@@ -113,20 +113,21 @@ FocusScope {
     }
 
     function fetchSuggestions(t) {
-        if (!AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
+        if (!AppSettings.networkSuggestionsEnabled || !AppSettings.networkSuggestionsSupported
+                || t.length < 2 || root.looksLikeUrl(t))
             return
+        var url = AppSettings.suggestUrl(t)
+        if (url.length === 0)
+            return
+
         var req = new XMLHttpRequest()
-        // Google's "firefox" client returns clean JSON: ["query", ["s1","s2",...]].
-        var url = "https://www.google.com/complete/search?client=firefox&q="
-                + encodeURIComponent(t)
         req.onreadystatechange = function() {
             if (req.readyState !== XMLHttpRequest.DONE || req.status !== 200)
                 return
             try {
-                var data = JSON.parse(req.responseText)
-                if (Array.isArray(data) && Array.isArray(data[1])
-                    && ("" + data[0]).toLowerCase() === t.toLowerCase()) {
-                    root.netPhrases = data[1]
+                var phrases = root.parseSuggestionResponse(req.responseText, t)
+                if (phrases.length > 0) {
+                    root.netPhrases = phrases
                     root.netQuery = t.toLowerCase()
                     // Only refresh the panel if the user is still on this text.
                     if (field.text.trim() === t)
@@ -136,6 +137,26 @@ FocusScope {
         }
         req.open("GET", url)
         req.send()
+    }
+
+    function parseSuggestionResponse(text, t) {
+        var data = JSON.parse(text)
+        var parser = AppSettings.suggestParser()
+        if (parser === "firefox-array") {
+            if (Array.isArray(data) && Array.isArray(data[1])
+                    && ("" + data[0]).toLowerCase() === t.toLowerCase())
+                return data[1]
+        } else if (parser === "duckduckgo") {
+            if (!Array.isArray(data))
+                return []
+            var phrases = []
+            for (var i = 0; i < data.length; ++i) {
+                if (data[i] && data[i].phrase)
+                    phrases.push(data[i].phrase)
+            }
+            return phrases
+        }
+        return []
     }
 
     function moveHighlight(delta) {
@@ -206,7 +227,7 @@ FocusScope {
             // so suggestions never pop up while pages navigate on their own.
             onTextEdited: {
                 root.rebuildSuggestions()
-                if (AppSettings.networkSuggestionsEnabled)
+                if (AppSettings.networkSuggestionsEnabled && AppSettings.networkSuggestionsSupported)
                     netDebounce.restart()
                 else
                     netDebounce.stop()

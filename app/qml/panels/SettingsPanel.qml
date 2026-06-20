@@ -664,7 +664,9 @@ Item {
                             SettingRow {
                                 Layout.fillWidth: true
                                 label: qsTr("Сетевые подсказки")
-                                hint: qsTr("Отправляет введённый текст сервису автодополнения.")
+                                hint: AppSettings.networkSuggestionsSupported
+                                      ? qsTr("Набираемый текст отправляется провайдеру: %1.").arg(AppSettings.suggestionProviderName)
+                                      : qsTr("Для %1 сетевые подсказки не поддержаны — будут показаны только история и закладки.").arg(AppSettings.searchEngine)
                                 iconName: "sparkles"
                                 ToggleSwitch { accessibleName: qsTr("Сетевые подсказки"); checked: AppSettings.networkSuggestionsEnabled; onToggled: AppSettings.networkSuggestionsEnabled = !AppSettings.networkSuggestionsEnabled }
                             }

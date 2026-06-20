@@ -10,12 +10,19 @@ namespace {
 struct Engine {
     const char *name;
     const char *query;
+    const char *suggest;
+    const char *suggestParser;
+    const char *suggestProvider;
 };
 const Engine kEngines[] = {
-    {"DuckDuckGo", "https://duckduckgo.com/?q=%1"},
-    {"Google",     "https://www.google.com/search?q=%1"},
-    {"Bing",       "https://www.bing.com/search?q=%1"},
-    {"Yandex",     "https://yandex.ru/search/?text=%1"},
+    {"DuckDuckGo", "https://duckduckgo.com/?q=%1",
+     "https://duckduckgo.com/ac/?q=%1&type=list", "duckduckgo", "DuckDuckGo"},
+    {"Google",     "https://www.google.com/search?q=%1",
+     "https://www.google.com/complete/search?client=firefox&q=%1", "firefox-array", "Google"},
+    {"Bing",       "https://www.bing.com/search?q=%1",
+     "https://api.bing.com/osjson.aspx?query=%1", "firefox-array", "Bing"},
+    {"Yandex",     "https://yandex.ru/search/?text=%1",
+     "https://suggest.yandex.ru/suggest-ff.cgi?part=%1", "firefox-array", "Yandex"},
 };
 
 QString writableOrFallback(QStandardPaths::StandardLocation location,
@@ -63,6 +70,16 @@ QString defaultDisplayName()
         return QStringLiteral("Ignat");
     user[0] = user.at(0).toUpper();
     return user;
+}
+
+
+const Engine *activeEngine(const QString &name)
+{
+    for (const auto &e : kEngines) {
+        if (name == QLatin1String(e.name))
+            return &e;
+    }
+    return &kEngines[0];
 }
 
 QString normalizedWallpaperPreset(const QString &value)
@@ -353,10 +370,34 @@ QString AppSettings::webCachePath() const
 QString AppSettings::searchUrl(const QString &query) const
 {
     const QString encoded = QString::fromLatin1(QUrl::toPercentEncoding(query));
-    for (const auto &e : kEngines) {
-        if (m_searchEngine == QLatin1String(e.name))
-            return QString::fromLatin1(e.query).arg(encoded);
-    }
-    // Fall back to the first engine if the stored name is unknown.
-    return QString::fromLatin1(kEngines[0].query).arg(encoded);
+    return QString::fromLatin1(activeEngine(m_searchEngine)->query).arg(encoded);
+}
+
+QString AppSettings::suggestUrl(const QString &query) const
+{
+    const Engine *engine = activeEngine(m_searchEngine);
+    if (!engine->suggest || !*engine->suggest)
+        return QString();
+
+    const QString encoded = QString::fromLatin1(QUrl::toPercentEncoding(query));
+    return QString::fromLatin1(engine->suggest).arg(encoded);
+}
+
+QString AppSettings::suggestParser() const
+{
+    return QString::fromLatin1(activeEngine(m_searchEngine)->suggestParser);
+}
+
+bool AppSettings::networkSuggestionsSupported() const
+{
+    const Engine *engine = activeEngine(m_searchEngine);
+    return engine->suggest && *engine->suggest && engine->suggestParser && *engine->suggestParser;
+}
+
+QString AppSettings::suggestionProviderName() const
+{
+    const Engine *engine = activeEngine(m_searchEngine);
+    if (!networkSuggestionsSupported())
+        return tr("не поддерживается для %1").arg(QString::fromLatin1(engine->name));
+    return QString::fromLatin1(engine->suggestProvider);
 }

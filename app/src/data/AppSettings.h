@@ -28,6 +28,8 @@ class AppSettings : public QObject
     Q_PROPERTY(bool homeSmartCards READ homeSmartCards WRITE setHomeSmartCards NOTIFY homeSmartCardsChanged)
     Q_PROPERTY(QString searchEngine READ searchEngine WRITE setSearchEngine NOTIFY searchEngineChanged)
     Q_PROPERTY(bool networkSuggestionsEnabled READ networkSuggestionsEnabled WRITE setNetworkSuggestionsEnabled NOTIFY networkSuggestionsEnabledChanged)
+    Q_PROPERTY(bool networkSuggestionsSupported READ networkSuggestionsSupported NOTIFY searchEngineChanged)
+    Q_PROPERTY(QString suggestionProviderName READ suggestionProviderName NOTIFY searchEngineChanged)
     Q_PROPERTY(QString homePage READ homePage WRITE setHomePage NOTIFY homePageChanged)
     Q_PROPERTY(QString downloadPath READ downloadPath WRITE setDownloadPath NOTIFY downloadPathChanged)
     Q_PROPERTY(bool askDownloadLocation READ askDownloadLocation WRITE setAskDownloadLocation NOTIFY askDownloadLocationChanged)
@@ -101,6 +103,10 @@ public:
     Q_INVOKABLE QStringList searchEngines() const;
     // Builds a full search URL for the active engine and the given query.
     Q_INVOKABLE QString searchUrl(const QString &query) const;
+    Q_INVOKABLE QString suggestUrl(const QString &query) const;
+    Q_INVOKABLE QString suggestParser() const;
+    bool networkSuggestionsSupported() const;
+    QString suggestionProviderName() const;
     // Writable downloads directory — used as the target for "save as PDF".
     Q_INVOKABLE QString downloadDir() const;
     Q_INVOKABLE QString webStoragePath() const;
