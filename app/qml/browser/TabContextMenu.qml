@@ -2,17 +2,27 @@ import QtQuick
 import QtQuick.Controls.Basic
 import Filka
 
-// TabContextMenu — Filka's glass right-click menu for a tab. Pure TabModel
-// operations (duplicate / pin / mute / close variants); the TabStrip sets the
-// target index and its current pinned/muted state before popping it up.
+// TabContextMenu — Filka's glass right-click menu for a tab. TabModel owns
+// same-workspace actions; WorkspaceModel powers cross-workspace moves.
 Menu {
     id: menu
 
     property var tabsModel: null
+    property var workspaceModel: null
     property int tabIndex: -1
     property bool tabPinned: false
     property bool tabMuted: false
     signal screenshotRequested(int tabIndex)
+
+    function moveToWorkspace(workspaceIndex) {
+        if (!workspaceModel)
+            return
+        // Default: keep the user in the current workspace. Holding Shift while
+        // choosing a destination follows the moved tab instead.
+        var followMovedTab = (Qt.keyboardModifiers & Qt.ShiftModifier) !== 0
+        workspaceModel.moveTabToWorkspace(workspaceModel.activeIndex, tabIndex,
+                                          workspaceIndex, followMovedTab)
+    }
 
     width: 230
     padding: 6
@@ -78,6 +88,22 @@ Menu {
     MItem {
         text: qsTr("Скриншот вкладки")
         onTriggered: menu.screenshotRequested(menu.tabIndex)
+    }
+
+    Menu {
+        title: qsTr("Переместить в пространство")
+        enabled: menu.workspaceModel && menu.workspaceModel.count > 1
+
+        Repeater {
+            model: menu.workspaceModel
+            delegate: MItem {
+                required property int index
+                required property string name
+                text: name
+                visible: index !== menu.workspaceModel.activeIndex
+                onTriggered: menu.moveToWorkspace(index)
+            }
+        }
     }
 
     MSep {}

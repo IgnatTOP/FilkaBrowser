@@ -37,6 +37,8 @@ Item {
         if (!view || field.text.length === 0) { root.matchCount = 0; return }
         view.findText(field.text, backward ? WebEngineView.FindBackward : 0)
     }
+    function findPreviousMatch() { findNext(true) }
+    function findNextMatch() { findNext(false) }
     onViewChanged: {
         if (previousView && previousView !== view)
             previousView.findText("")
@@ -104,6 +106,17 @@ Item {
                     searchDebounce.stop()
                     root.findNext(false)
                 }
+                Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        searchDebounce.stop()
+                        if (event.modifiers & Qt.ShiftModifier)
+                            root.findPreviousMatch()
+                        else
+                            root.findNextMatch()
+                        event.accepted = true
+                    }
+                }
+                }
                 Keys.onEscapePressed: root.closeBar()
             }
             Text {
@@ -118,8 +131,8 @@ Item {
         Row {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: Theme.s1 }
             spacing: 0
-            IconButton { iconName: "chevron-left";  size: 30; Accessible.name: qsTr("Назад");   onClicked: { searchDebounce.stop(); root.findNext(true) } }
-            IconButton { iconName: "chevron-right"; size: 30; Accessible.name: qsTr("Вперёд");  onClicked: { searchDebounce.stop(); root.findNext(false) } }
+            IconButton { iconName: "chevron-left";  size: 30; Accessible.name: qsTr("Назад");   onClicked: { searchDebounce.stop(); root.findPreviousMatch() } }
+            IconButton { iconName: "chevron-right"; size: 30; Accessible.name: qsTr("Вперёд");  onClicked: { searchDebounce.stop(); root.findNextMatch() } }
             IconButton { iconName: "x";             size: 30; Accessible.name: qsTr("Закрыть"); onClicked: root.closeBar() }
         }
     }

@@ -15,6 +15,17 @@ Menu {
     property var browser: null
     signal inspectRequested()
     signal pictureInPictureRequested()
+    signal openLinkInNewWindowRequested(url linkUrl)
+
+    function openLinkInTab(activate) {
+        if (!menu.tabsModel || !menu.request)
+            return
+        var url = menu.request.linkUrl
+        if (menu.tabsModel.addTabAfter)
+            menu.tabsModel.addTabAfter(menu.tabsModel.activeIndex, url, activate)
+        else
+            menu.tabsModel.addTab(url, activate)
+    }
 
     width: 250
     padding: 6
@@ -83,7 +94,17 @@ Menu {
     MItem {
         text: "Открыть ссылку в новой вкладке"
         visible: menu.request && menu.request.linkUrl.toString().length > 0
-        onTriggered: if (menu.tabsModel) menu.tabsModel.addTab(menu.request.linkUrl, false)
+        onTriggered: menu.openLinkInTab(true)
+    }
+    MItem {
+        text: "Открыть ссылку в фоновой вкладке"
+        visible: menu.request && menu.request.linkUrl.toString().length > 0
+        onTriggered: menu.openLinkInTab(false)
+    }
+    MItem {
+        text: "Открыть в новом окне"
+        visible: menu.request && menu.request.linkUrl.toString().length > 0
+        onTriggered: menu.openLinkInNewWindowRequested(menu.request.linkUrl)
     }
     MItem {
         text: "Копировать адрес ссылки"

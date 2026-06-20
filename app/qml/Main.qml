@@ -43,7 +43,7 @@ QtObject {
         DownloadModel.acceptDownload(download, AppSettings.downloadPath, name, false)
     }
 
-    function openWindow(privateWindow) {
+    function openWindow(privateWindow, initialUrl) {
         const props = {
             "privateMode": privateWindow === true,
             "windowManager": root,
@@ -55,6 +55,8 @@ QtObject {
             return
         }
         windows.push(window)
+        if (initialUrl && initialUrl.toString().length > 0 && window.browserView)
+            window.browserView.navigate(initialUrl)
     }
 
     function releaseWindow(window) {
@@ -80,7 +82,7 @@ QtObject {
         persistentStoragePath: AppSettings.webStoragePath()
         cachePath: AppSettings.webCachePath()
         persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
-        persistentPermissionsPolicy: WebEngineProfile.StoreOnDisk
+        persistentPermissionsPolicy: WebEngineProfile.AskEveryTime
         httpCacheType: WebEngineProfile.DiskHttpCache
         httpCacheMaximumSize: 256 * 1024 * 1024
         downloadPath: AppSettings.downloadPath
@@ -95,6 +97,6 @@ QtObject {
 
     Component.onCompleted: {
         AdBlockManager.attachProfile(sharedProfile)
-        openWindow(false)
+        openWindow(false, "")
     }
 }

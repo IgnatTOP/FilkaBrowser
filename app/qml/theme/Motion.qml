@@ -13,6 +13,7 @@ QtObject {
     readonly property int base:    reducedMotion ? 0 : 220
     readonly property int slow:    reducedMotion ? 0 : 340
     readonly property int xslow:   reducedMotion ? 0 : 520
+    readonly property int actionFeedbackTimeout: 2200
 
     // Easing curves — expressive but never bouncy enough to feel cheap.
     readonly property int standard:   Easing.OutCubic

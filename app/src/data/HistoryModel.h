@@ -14,6 +14,7 @@
 #include <QString>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <qqmlregistration.h>
 
 class HistoryModel : public QAbstractListModel
@@ -44,6 +45,7 @@ public:
     // Records a successful navigation. Ignores blank/non-web URLs. Existing
     // URLs are bumped to the top with an incremented visit count.
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
+    Q_INVOKABLE QVariantMap importEntries(const QVariantList &entries, const QString &mode = QStringLiteral("skipDuplicates"));
     Q_INVOKABLE void removeEntry(int index);
     Q_INVOKABLE bool restoreEntry(int index, const QString &title, const QUrl &url,
                                    const QDateTime &lastVisit);
@@ -72,4 +74,6 @@ private:
     void openDatabase();
     void load();
     int indexOfUrl(const QString &url) const;
+    void upsertImportedVisit(const QUrl &url, const QString &title, const QDateTime &lastVisit, bool updateExisting, int *added, int *skipped);
+    static bool isWebUrl(const QUrl &url);
 };

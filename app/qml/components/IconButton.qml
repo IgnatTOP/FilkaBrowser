@@ -20,7 +20,7 @@ Button {
     focusPolicy: Qt.TabFocus
     Accessible.role: Accessible.Button
     ToolTip.text: tooltip
-    ToolTip.visible: enabled && hovered && tooltip.length > 0
+    ToolTip.visible: enabled && (hovered || activeFocus) && tooltip.length > 0
     ToolTip.delay: 520
 
     // Enable/disable dimming and show/hide fades glide instead of snapping.

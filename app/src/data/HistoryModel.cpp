@@ -7,6 +7,7 @@
 #include <QSqlQuery>
 #include <QStandardPaths>
 #include <QVariant>
+#include <QVariantMap>
 
 HistoryModel::HistoryModel(QObject *parent) : QAbstractListModel(parent)
 {
@@ -112,14 +113,19 @@ int HistoryModel::indexOfUrl(const QString &url) const
     return -1;
 }
 
+bool HistoryModel::isWebUrl(const QUrl &url)
+{
+    return url.isValid() && (url.scheme() == QLatin1String("http")
+                             || url.scheme() == QLatin1String("https"));
+}
+
 void HistoryModel::recordVisit(const QUrl &url, const QString &title)
 {
     // Only track real, navigable web pages.
-    if (!url.isValid() || (url.scheme() != QLatin1String("http")
-                           && url.scheme() != QLatin1String("https")))
+    if (!isWebUrl(url))
         return;
 
-    const QString key = url.toString();
+    const QString key = url.toString(QUrl::FullyEncoded);
     const QDateTime now = QDateTime::currentDateTimeUtc();
     QString effectiveTitle = title;
 
@@ -164,6 +170,101 @@ void HistoryModel::recordVisit(const QUrl &url, const QString &title)
                      qPrintable(q.lastError().text()));
         }
     }
+}
+
+void HistoryModel::upsertImportedVisit(const QUrl &url, const QString &title, const QDateTime &lastVisit,
+                                       bool updateExisting, int *added, int *skipped)
+{
+    if (!url.isValid() || (url.scheme() != QLatin1String("http")
+                           && url.scheme() != QLatin1String("https")))
+        return;
+
+    const QString key = url.toString(QUrl::FullyEncoded);
+    const QDateTime visitTime = lastVisit.isValid() ? lastVisit.toUTC() : QDateTime::currentDateTimeUtc();
+    const int existing = indexOfUrl(key);
+    if (existing >= 0) {
+        if (skipped)
+            ++(*skipped);
+        if (!updateExisting)
+            return;
+
+        Entry &e = m_entries[existing];
+        bool changed = false;
+        if (visitTime > e.lastVisit) {
+            e.lastVisit = visitTime;
+            changed = true;
+        }
+        if (!title.isEmpty() && e.title != title) {
+            e.title = title;
+            changed = true;
+        }
+        if (!changed)
+            return;
+
+        int target = existing;
+        while (target > 0 && m_entries.at(target - 1).lastVisit < e.lastVisit)
+            --target;
+        if (target != existing) {
+            beginMoveRows({}, existing, existing, {}, target);
+            m_entries.move(existing, target);
+            endMoveRows();
+        } else {
+            emit dataChanged(index(existing), index(existing), {TitleRole, LastVisitRole});
+        }
+
+        if (m_db.isOpen()) {
+            QSqlQuery q(m_db);
+            q.prepare(QStringLiteral("UPDATE history SET title = ?, last_visit = ? WHERE url = ?"));
+            q.addBindValue(e.title);
+            q.addBindValue(e.lastVisit.toMSecsSinceEpoch());
+            q.addBindValue(key);
+            if (!q.exec())
+                qWarning("Filka: could not update imported history: %s", qPrintable(q.lastError().text()));
+        }
+        return;
+    }
+
+    beginInsertRows({}, 0, 0);
+    Entry e;
+    e.url = key;
+    e.title = title;
+    e.lastVisit = visitTime;
+    m_entries.prepend(e);
+    endInsertRows();
+    emit countChanged();
+    if (added)
+        ++(*added);
+
+    if (m_db.isOpen()) {
+        QSqlQuery q(m_db);
+        q.prepare(QStringLiteral("INSERT INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, 1)"));
+        q.addBindValue(key);
+        q.addBindValue(title);
+        q.addBindValue(visitTime.toMSecsSinceEpoch());
+        if (!q.exec())
+            qWarning("Filka: could not persist imported history: %s", qPrintable(q.lastError().text()));
+    }
+}
+
+QVariantMap HistoryModel::importEntries(const QVariantList &entries, const QString &mode)
+{
+    const bool updateExisting = mode == QLatin1String("updateExisting") || mode == QLatin1String("importAll");
+    int added = 0;
+    int skipped = 0;
+
+    for (const QVariant &value : entries) {
+        const QVariantMap map = value.toMap();
+        upsertImportedVisit(QUrl(map.value(QStringLiteral("url")).toString()),
+                            map.value(QStringLiteral("title")).toString(),
+                            map.value(QStringLiteral("lastVisit")).toDateTime(),
+                            updateExisting, &added, &skipped);
+    }
+
+    return QVariantMap{{QStringLiteral("added"), added},
+                       {QStringLiteral("skipped"), skipped},
+                       {QStringLiteral("skippedDuplicates"), skipped},
+                       {QStringLiteral("errors"), 0}};
+
 }
 
 QVariantList HistoryModel::search(const QString &query, int limit) const

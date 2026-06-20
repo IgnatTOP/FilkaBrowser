@@ -10,7 +10,6 @@
 #include <QSettings>
 #include <QString>
 #include <QStringList>
-#include <QUrl>
 #include <qqmlregistration.h>
 
 class AppSettings : public QObject
@@ -29,6 +28,8 @@ class AppSettings : public QObject
     Q_PROPERTY(bool homeSmartCards READ homeSmartCards WRITE setHomeSmartCards NOTIFY homeSmartCardsChanged)
     Q_PROPERTY(QString searchEngine READ searchEngine WRITE setSearchEngine NOTIFY searchEngineChanged)
     Q_PROPERTY(bool networkSuggestionsEnabled READ networkSuggestionsEnabled WRITE setNetworkSuggestionsEnabled NOTIFY networkSuggestionsEnabledChanged)
+    Q_PROPERTY(bool networkSuggestionsSupported READ networkSuggestionsSupported NOTIFY searchEngineChanged)
+    Q_PROPERTY(QString suggestionProviderName READ suggestionProviderName NOTIFY searchEngineChanged)
     Q_PROPERTY(QString homePage READ homePage WRITE setHomePage NOTIFY homePageChanged)
     Q_PROPERTY(QString downloadPath READ downloadPath WRITE setDownloadPath NOTIFY downloadPathChanged)
     Q_PROPERTY(bool askDownloadLocation READ askDownloadLocation WRITE setAskDownloadLocation NOTIFY askDownloadLocationChanged)
@@ -37,7 +38,6 @@ class AppSettings : public QObject
     Q_PROPERTY(qreal defaultZoom READ defaultZoom WRITE setDefaultZoom NOTIFY defaultZoomChanged)
     Q_PROPERTY(bool translatorCacheEnabled READ translatorCacheEnabled WRITE setTranslatorCacheEnabled NOTIFY translatorCacheEnabledChanged)
     Q_PROPERTY(bool translatorAutoOffer READ translatorAutoOffer WRITE setTranslatorAutoOffer NOTIFY translatorAutoOfferChanged)
-    Q_PROPERTY(bool permissiveAutoplayEnabled READ permissiveAutoplayEnabled WRITE setPermissiveAutoplayEnabled NOTIFY permissiveAutoplayEnabledChanged)
 
 public:
     explicit AppSettings(QObject *parent = nullptr);
@@ -99,18 +99,22 @@ public:
     bool translatorAutoOffer() const { return m_translatorAutoOffer; }
     void setTranslatorAutoOffer(bool value);
 
-    bool permissiveAutoplayEnabled() const { return m_permissiveAutoplayEnabled; }
-    void setPermissiveAutoplayEnabled(bool value);
-
     // The list of selectable search-engine names (for the settings UI).
     Q_INVOKABLE QStringList searchEngines() const;
     // Builds a full search URL for the active engine and the given query.
     Q_INVOKABLE QString searchUrl(const QString &query) const;
+    Q_INVOKABLE QString suggestUrl(const QString &query) const;
+    Q_INVOKABLE QString suggestParser() const;
+    bool networkSuggestionsSupported() const;
+    QString suggestionProviderName() const;
     // Writable downloads directory — used as the target for "save as PDF".
     Q_INVOKABLE QString downloadDir() const;
     Q_INVOKABLE QString webStoragePath() const;
     Q_INVOKABLE QString webCachePath() const;
-    Q_INVOKABLE bool isTrustedAutoplayHost(const QUrl &url) const;
+    Q_INVOKABLE QString sitePermissionDecision(const QString &origin, int permissionType) const;
+    Q_INVOKABLE void setSitePermissionDecision(const QString &origin, int permissionType, const QString &decision);
+    Q_INVOKABLE void clearSitePermissionDecision(const QString &origin, int permissionType);
+    Q_INVOKABLE void clearSitePermissionDecisions();
 
 signals:
     void onboardedChanged();
@@ -132,7 +136,6 @@ signals:
     void defaultZoomChanged();
     void translatorCacheEnabledChanged();
     void translatorAutoOfferChanged();
-    void permissiveAutoplayEnabledChanged();
 
 private:
     QSettings m_store;
@@ -155,5 +158,4 @@ private:
     qreal m_defaultZoom = 1.0;
     bool m_translatorCacheEnabled = true;
     bool m_translatorAutoOffer = true;
-    bool m_permissiveAutoplayEnabled = false;
 };

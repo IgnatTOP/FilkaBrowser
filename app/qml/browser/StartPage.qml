@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Filka
+import "../components/OmniboxHelper.js" as Omnibox
 
 Item {
     id: root
@@ -18,12 +19,16 @@ Item {
     property string dateText: ""
     property string greeting: ""
     property int editIndex: -1
-    property string linkTitleError: ""
-    property string linkUrlError: ""
     property var recentPages: []
     readonly property bool compact: width < 820
     readonly property real contentWidth: Math.min(760, Math.max(360, width - Theme.s7 * 2))
     readonly property int visibleDownloadCount: privateMode ? DownloadModel.count : DownloadModel.publicCount
+
+    property var suggestions: []
+    property int highlight: -1
+    property var netPhrases: []
+    property string netQuery: ""
+    readonly property bool suggesting: search.activeFocus && suggestions.length > 0
 
     component GlassCard: Rectangle {
         radius: Theme.radiusLg
@@ -33,94 +38,79 @@ Item {
     }
 
 
-    component QuickLinkTile: Item {
-        id: quickLinkTile
+    function resolve(text) { return Omnibox.resolve(text, AppSettings) }
+    function looksLikeUrl(text) { return Omnibox.looksLikeUrl(text) }
 
-        required property string title
-        required property string url
-        required property string host
-        property bool addTile: false
+    function rebuildSuggestions() {
+        suggestions = Omnibox.buildSuggestions({
+            text: search.text,
+            appSettings: AppSettings,
+            quickLinkModel: QuickLinkModel,
+            bookmarkModel: BookmarkModel,
+            historyModel: HistoryModel,
+            includeQuickLinks: true,
+            networkEnabled: AppSettings.networkSuggestionsEnabled,
+            netPhrases: root.netPhrases,
+            netQuery: root.netQuery,
+            goLabel: qsTr("Перейти на сайт"),
+            searchLabel: qsTr("Искать в сети"),
+            suggestLabel: qsTr("Поиск"),
+            maxCount: 9,
+            quickLinkLimit: 4,
+            bookmarkLimit: 3,
+            historyLimit: 5
+        })
+        highlight = -1
+    }
 
-        signal activated()
-        signal editRequested()
-        signal removeRequested()
-
-        // Keep GridLayout sizing here so normal and add quick-link tiles stay in sync.
-        Layout.preferredWidth: root.compact ? 88 : 92
-        Layout.preferredHeight: 112
-
-        GlassCard {
-            id: tile
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            height: 88
-            radius: Theme.radiusLg
-            color: tileHover.hovered ? Theme.glassHigh : (quickLinkTile.addTile ? Theme.glassLow : Theme.glassMed)
-            border.width: activeFocus ? Theme.focusWidth : 1
-            border.color: activeFocus ? Theme.focusRing : Qt.rgba(1, 1, 1, quickLinkTile.addTile ? 0.13 : 0.15)
-            activeFocusOnTab: true
-            Accessible.role: Accessible.Button
-            Accessible.name: quickLinkTile.addTile ? qsTr("Добавить быструю ссылку") : quickLinkTile.title
-            scale: tileTap.pressed ? 0.96 : (tileHover.hovered ? 1.035 : 1.0)
-            Behavior on color { ColorAnimation { duration: Motion.fast } }
-            Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
-
-            Favicon {
-                anchors.centerIn: parent
-                width: 34
-                height: 34
-                radius: Theme.radiusMd
-                host: quickLinkTile.host
-                fallbackText: root.initials(quickLinkTile.title)
-                visible: !quickLinkTile.addTile
-            }
-
-            Icon {
-                anchors.centerIn: parent
-                name: "plus"
-                size: 30
-                color: tileHover.hovered ? Theme.textPrimary : Theme.textSecondary
-                visible: quickLinkTile.addTile
-            }
-
-            Row {
-                anchors { right: parent.right; top: parent.top; margins: 5 }
-                spacing: 1
-                opacity: !quickLinkTile.addTile && (tileHover.hovered || tile.activeFocus) ? 1 : 0
-                visible: opacity > 0
-                Behavior on opacity { NumberAnimation { duration: Motion.fast } }
-                IconButton {
-                    iconName: "settings"
-                    size: 24
-                    iconSize: 12
-                    Accessible.name: qsTr("Редактировать быструю ссылку")
-                    onClicked: quickLinkTile.editRequested()
+    function fetchSuggestions(t) {
+        if (!AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
+            return
+        var req = new XMLHttpRequest()
+        var url = "https://www.google.com/complete/search?client=firefox&q="
+                + encodeURIComponent(t)
+        req.onreadystatechange = function() {
+            if (req.readyState !== XMLHttpRequest.DONE || req.status !== 200)
+                return
+            try {
+                var data = JSON.parse(req.responseText)
+                if (Array.isArray(data) && Array.isArray(data[1])
+                    && ("" + data[0]).toLowerCase() === t.toLowerCase()) {
+                    root.netPhrases = data[1]
+                    root.netQuery = t.toLowerCase()
+                    if (search.text.trim() === t)
+                        root.rebuildSuggestions()
                 }
-                IconButton {
-                    iconName: "x"
-                    size: 24
-                    iconSize: 12
-                    Accessible.name: qsTr("Удалить быструю ссылку")
-                    onClicked: quickLinkTile.removeRequested()
-                }
-            }
-
-            HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { id: tileTap; onTapped: quickLinkTile.activated() }
-            Keys.onReturnPressed: quickLinkTile.activated()
-            Keys.onEnterPressed: quickLinkTile.activated()
-            Keys.onSpacePressed: quickLinkTile.activated()
+            } catch (e) { /* ignore malformed responses */ }
         }
+        req.open("GET", url)
+        req.send()
+    }
 
-        Text {
-            anchors { left: parent.left; right: parent.right; top: tile.bottom; topMargin: Theme.s2 }
-            text: quickLinkTile.title
-            color: quickLinkTile.addTile ? Theme.textSecondary : Theme.textPrimary
-            horizontalAlignment: Text.AlignHCenter
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSm
-            font.weight: Font.Medium
-            elide: Text.ElideRight
+    function moveHighlight(delta) {
+        if (suggestions.length === 0)
+            return
+        var n = suggestions.length
+        highlight = highlight + delta
+        if (highlight < -1)
+            highlight = n - 1
+        else if (highlight >= n)
+            highlight = -1
+    }
+
+    function acceptSuggestion(i) {
+        var url = ""
+        if (i >= 0 && i < suggestions.length)
+            url = suggestions[i].url
+        else
+            url = root.resolve(search.text)
+        if (url.length) {
+            root.navigate(url)
+            search.text = ""
         }
+        suggestions = []
+        highlight = -1
+        search.focus = false
     }
 
     function hostOf(u) {
@@ -168,52 +158,31 @@ Item {
 
     function openLinkEditor(index, title, url) {
         editIndex = index
-        linkTitleError = ""
-        linkUrlError = ""
         linkTitle.text = title
         linkUrl.text = url
-        validateLinkEditorUrl()
         editor.open()
         linkTitle.forceActiveFocus()
         linkTitle.selectAll()
     }
 
-    function normalizedLinkEditorUrl() {
-        var rawUrl = linkUrl.text.trim()
-        if (rawUrl.length === 0) {
-            linkUrlError = qsTr("Введите адрес сайта")
-            return ""
-        }
-
-        var url = /^[a-z][a-z0-9+.-]*:/i.test(rawUrl) ? rawUrl : "https://" + rawUrl
-        try {
-            var parsed = new URL(url)
-            if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.hostname.length === 0) {
-                linkUrlError = qsTr("Введите адрес сайта")
-                return ""
-            }
-            linkUrlError = ""
-            return parsed.href
-        } catch (e) {
-            linkUrlError = qsTr("Введите адрес сайта")
-            return ""
-        }
-    }
-
-    function validateLinkEditorUrl() {
-        return normalizedLinkEditorUrl().length > 0
-    }
-
     function saveLinkEditor() {
         var title = linkTitle.text.trim()
-        var url = normalizedLinkEditorUrl()
+        var url = linkUrl.text.trim()
         if (url.length === 0)
             return
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url))
+            url = "https://" + url
         if (editIndex >= 0)
             QuickLinkModel.update(editIndex, title, url)
         else
             QuickLinkModel.add(title, url)
         editor.close()
+    }
+
+    Timer {
+        id: netDebounce
+        interval: 180
+        onTriggered: root.fetchSuggestions(search.text.trim())
     }
 
     Timer {
@@ -247,24 +216,17 @@ Item {
         opacity: 0
 
         GlassCard {
-            width: statusRow.implicitWidth + Theme.s4
+            width: weatherRow.implicitWidth + Theme.s4
             height: 34
             radius: Theme.radiusPill
-            color: root.privateMode ? Theme.activeFill : Theme.glassMed
             Row {
-                id: statusRow
+                id: weatherRow
                 anchors.centerIn: parent
                 spacing: 7
-                Icon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: root.privateMode ? "shield-check" : (AdBlockManager.enabled ? "shield" : "globe")
-                    size: 15
-                    color: root.privateMode ? Theme.positive : Theme.brandLavender
-                }
+                Icon { anchors.verticalCenter: parent.verticalCenter; name: "sun"; size: 15; color: Theme.brandLavender }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.privateMode ? qsTr("Приватный режим")
-                         : (AdBlockManager.enabled ? qsTr("Защита включена") : qsTr("Обычный режим"))
+                    text: qsTr("21°C  Барселона")
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeXs
@@ -372,12 +334,21 @@ Item {
                     placeholderText: qsTr("Поиск в интернете или введите URL")
                     placeholderTextColor: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.48)
                     Accessible.name: qsTr("Поиск или адрес")
-                    onAccepted: {
-                        if (text.trim().length) {
-                            root.navigate(text)
-                            text = ""
-                        }
+                    onActiveFocusChanged: if (!activeFocus) { root.suggestions = []; root.highlight = -1 }
+                    onTextEdited: {
+                        root.rebuildSuggestions()
+                        if (AppSettings.networkSuggestionsEnabled)
+                            netDebounce.restart()
+                        else
+                            netDebounce.stop()
                     }
+                    onAccepted: root.acceptSuggestion(root.highlight)
+                    Keys.onEscapePressed: {
+                        if (root.suggestions.length > 0) { root.suggestions = []; root.highlight = -1 }
+                        else { text = ""; focus = false }
+                    }
+                    Keys.onDownPressed: root.moveHighlight(1)
+                    Keys.onUpPressed: root.moveHighlight(-1)
                 }
 
                 IconButton {
@@ -389,12 +360,15 @@ Item {
                     active: search.text.trim().length > 0
                     opacity: search.text.trim().length > 0 ? 1 : 0.55
                     Accessible.name: qsTr("Перейти")
-                    onClicked: {
-                        if (search.text.trim().length) {
-                            root.navigate(search.text)
-                            search.text = ""
-                        }
-                    }
+                    onClicked: root.acceptSuggestion(root.highlight)
+                }
+
+                OmniboxSuggestionsPopup {
+                    id: searchPopup
+                    anchorHeight: parent.height
+                    suggestions: root.suggesting ? root.suggestions : []
+                    highlight: root.highlight
+                    onAccepted: function(index) { root.acceptSuggestion(index) }
                 }
             }
 
@@ -407,23 +381,122 @@ Item {
 
                 Repeater {
                     model: QuickLinkModel
-                    delegate: QuickLinkTile {
+                    delegate: Item {
+                        id: tileWrap
                         required property int index
+                        required property string title
+                        required property string url
+                        required property string host
+                        Layout.preferredWidth: root.compact ? 88 : 92
+                        Layout.preferredHeight: 112
 
-                        onActivated: root.navigate(url)
-                        onEditRequested: root.openLinkEditor(index, title, url)
-                        onRemoveRequested: QuickLinkModel.remove(index)
+                        GlassCard {
+                            id: tile
+                            anchors { left: parent.left; right: parent.right; top: parent.top }
+                            height: 88
+                            radius: Theme.radiusLg
+                            color: tileHover.hovered ? Theme.glassHigh : Theme.glassMed
+                            border.width: tile.activeFocus ? Theme.focusWidth : 1
+                            border.color: tile.activeFocus ? Theme.focusRing : Qt.rgba(1, 1, 1, 0.15)
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Button
+                            Accessible.name: tileWrap.title
+                            scale: tileTap.pressed ? 0.96 : (tileHover.hovered ? 1.035 : 1.0)
+                            Behavior on color { ColorAnimation { duration: Motion.fast } }
+                            Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
+
+                            Favicon {
+                                id: favicon
+                                anchors.centerIn: parent
+                                width: 34
+                                height: 34
+                                radius: Theme.radiusMd
+                                host: tileWrap.host
+                                fallbackText: root.initials(tileWrap.title)
+                            }
+
+                            Row {
+                                anchors { right: parent.right; top: parent.top; margins: 5 }
+                                spacing: 1
+                                opacity: tileHover.hovered || tile.activeFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Motion.fast } }
+                                IconButton {
+                                    iconName: "settings"
+                                    size: 24
+                                    iconSize: 12
+                                    Accessible.name: qsTr("Редактировать быструю ссылку")
+                                    onClicked: root.openLinkEditor(tileWrap.index, tileWrap.title, tileWrap.url)
+                                }
+                                IconButton {
+                                    iconName: "x"
+                                    size: 24
+                                    iconSize: 12
+                                    Accessible.name: qsTr("Удалить быструю ссылку")
+                                    onClicked: QuickLinkModel.remove(tileWrap.index)
+                                }
+                            }
+
+                            HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { id: tileTap; onTapped: root.navigate(tileWrap.url) }
+                            Keys.onReturnPressed: root.navigate(tileWrap.url)
+                            Keys.onEnterPressed: root.navigate(tileWrap.url)
+                            Keys.onSpacePressed: root.navigate(tileWrap.url)
+                        }
+
+                        Text {
+                            anchors { left: parent.left; right: parent.right; top: tile.bottom; topMargin: Theme.s2 }
+                            text: tileWrap.title
+                            color: Theme.textPrimary
+                            horizontalAlignment: Text.AlignHCenter
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSm
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
                     }
                 }
 
-                QuickLinkTile {
+                Item {
                     id: addWrap
-                    title: qsTr("Добавить")
-                    url: ""
-                    host: ""
-                    addTile: true
+                    Layout.preferredWidth: root.compact ? 88 : 92
+                    Layout.preferredHeight: 112
 
-                    onActivated: root.openLinkEditor(-1, "", "")
+                    GlassCard {
+                        id: addTile
+                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                        height: 88
+                        radius: Theme.radiusLg
+                        color: addHover.hovered ? Theme.glassHigh : Theme.glassLow
+                        border.width: activeFocus ? Theme.focusWidth : 1
+                        border.color: activeFocus ? Theme.focusRing : Qt.rgba(1, 1, 1, 0.13)
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Добавить быструю ссылку")
+                        scale: addTap.pressed ? 0.96 : (addHover.hovered ? 1.035 : 1.0)
+                        Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.emphasized } }
+
+                        Icon {
+                            anchors.centerIn: parent
+                            name: "plus"
+                            size: 30
+                            color: addHover.hovered ? Theme.textPrimary : Theme.textSecondary
+                        }
+                        HoverHandler { id: addHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { id: addTap; onTapped: root.openLinkEditor(-1, "", "") }
+                        Keys.onReturnPressed: root.openLinkEditor(-1, "", "")
+                        Keys.onEnterPressed: root.openLinkEditor(-1, "", "")
+                        Keys.onSpacePressed: root.openLinkEditor(-1, "", "")
+                    }
+
+                    Text {
+                        anchors { left: parent.left; right: parent.right; top: addTile.bottom; topMargin: Theme.s2 }
+                        text: qsTr("Добавить")
+                        color: Theme.textSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm
+                        font.weight: Font.Medium
+                    }
                 }
             }
 
@@ -703,21 +776,9 @@ Item {
                     radius: Theme.radiusMd
                     color: linkUrl.activeFocus ? Theme.surfaceAlt : Theme.card
                     border.width: 1
-                    border.color: root.linkUrlError.length > 0 ? Theme.danger
-                                : linkUrl.activeFocus ? Theme.accent
-                                                      : Theme.outline
+                    border.color: linkUrl.activeFocus ? Theme.accent : Theme.outline
                 }
-                onTextChanged: root.validateLinkEditorUrl()
                 onAccepted: root.saveLinkEditor()
-            }
-            Text {
-                Layout.fillWidth: true
-                visible: root.linkUrlError.length > 0
-                text: root.linkUrlError
-                color: Theme.danger
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
-                wrapMode: Text.WordWrap
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -735,17 +796,14 @@ Item {
                     }
                 }
                 Pill {
-                    id: saveLinkButton
                     implicitHeight: 34
                     accessibleName: qsTr("Сохранить быструю ссылку")
-                    interactive: root.linkUrlError.length === 0 && linkUrl.text.trim().length > 0
-                    opacity: interactive ? 1 : 0.45
-                    fillColor: interactive ? Theme.accent : Theme.surfaceAlt
-                    strokeWidth: interactive ? 0 : 1
+                    fillColor: Theme.accent
+                    strokeWidth: 0
                     onClicked: root.saveLinkEditor()
                     Text {
                         text: qsTr("Сохранить")
-                        color: saveLinkButton.interactive ? Theme.accentForeground : Theme.textMuted
+                        color: Theme.accentForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeXs
                         font.weight: Font.DemiBold

@@ -37,3 +37,24 @@ width/height animation except for small chrome controls.
 
 `Theme.dark` toggles Light/Dark; all semantic tokens resolve per mode. Both
 themes must keep AA text contrast and visible focus rings.
+
+## Destructive actions
+
+Destructive UI must use one of the shared action-feedback patterns instead of
+ad-hoc timers or silent removal.
+
+- **Bulk destructive actions use `ConfirmActionButton`.** The first activation
+  arms the button, and the second activation within `Motion.actionFeedbackTimeout`
+  performs the action. Use this for clearing whole collections such as history,
+  bookmarks and completed downloads.
+- **Single-item removals use `UndoToast`.** Remove the item immediately, show a
+  toast with an undo action, and restore the captured item if the user activates
+  undo before `Motion.actionFeedbackTimeout` expires. Use this for individual
+  bookmarks, history entries, quick links and workspaces.
+- **Timeouts are centralized.** Do not create per-feature confirm/undo intervals;
+  use `Motion.actionFeedbackTimeout` so all destructive feedback has the same
+  rhythm.
+- **Accessible names must describe the destructive target.** Icon-only delete
+  buttons and destructive menu items need a specific `Accessible.name`, for
+  example “Удалить закладку Example” or “Подтвердить очистку всей истории”, not
+  a generic “Удалить”.

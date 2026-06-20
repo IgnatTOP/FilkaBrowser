@@ -24,9 +24,9 @@ ApplicationWindow {
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
 
-    function openNewWindow(privateWindow) {
+    function openNewWindow(privateWindow, initialUrl) {
         if (windowManager)
-            windowManager.openWindow(privateWindow === true)
+            windowManager.openWindow(privateWindow === true, initialUrl || "")
     }
 
     onClosing: function(close) {
@@ -177,7 +177,7 @@ ApplicationWindow {
                         appWindow.showNormal()
                     }
                 }
-                onNewWindowRequested: appWindow.openNewWindow(false)
+                onNewWindowRequested: (initialUrl) => appWindow.openNewWindow(false, initialUrl)
                 onNewPrivateWindowRequested: appWindow.openNewWindow(true)
             }
         }

@@ -320,6 +320,30 @@ void WorkspaceModel::setTabMuted(int workspaceIndex, int tabIndex, bool muted)
     m_items.at(workspaceIndex).tabs->setMuted(tabIndex, muted);
 }
 
+int WorkspaceModel::moveTabToWorkspace(int fromWorkspace, int tabIndex, int toWorkspace, bool activateMoved)
+{
+    if (!valid(fromWorkspace) || !valid(toWorkspace) || fromWorkspace == toWorkspace)
+        return -1;
+
+    TabModel *source = m_items.at(fromWorkspace).tabs;
+    TabModel *target = m_items.at(toWorkspace).tabs;
+    if (!source || !target)
+        return -1;
+
+    const int movedIndex = source->moveTabTo(target, tabIndex, activateMoved);
+    if (movedIndex < 0)
+        return -1;
+
+    emit tabSummariesChanged();
+    if (activateMoved) {
+        setActiveIndex(toWorkspace);
+        target->setActiveIndex(movedIndex);
+    } else {
+        scheduleSave();
+    }
+    return movedIndex;
+}
+
 int WorkspaceModel::addWorkspace(const QString &name, const QString &glyph, const QColor &accent)
 {
     const QString cleanName = name.trimmed().isEmpty()
@@ -344,6 +368,47 @@ void WorkspaceModel::renameWorkspace(int index, const QString &name)
     emit dataChanged(mi, mi, {NameRole});
     if (index == m_activeIndex)
         emit activeNameChanged();
+    saveWorkspaceDefinitions();
+}
+
+
+void WorkspaceModel::updateWorkspace(int index, const QString &name, const QString &glyph, const QColor &accent)
+{
+    if (!valid(index))
+        return;
+
+    const QString cleanName = name.trimmed();
+    if (cleanName.isEmpty())
+        return;
+
+    const QString cleanGlyph = glyph.trimmed().isEmpty() ? QStringLiteral("globe") : glyph.trimmed();
+    const QColor cleanAccent = accent.isValid() ? accent : QColor("#8B5CF6");
+
+    QList<int> changedRoles;
+    if (m_items[index].name != cleanName) {
+        m_items[index].name = cleanName;
+        changedRoles.append(NameRole);
+    }
+    if (m_items[index].glyph != cleanGlyph) {
+        m_items[index].glyph = cleanGlyph;
+        changedRoles.append(GlyphRole);
+    }
+    if (m_items[index].accent != cleanAccent) {
+        m_items[index].accent = cleanAccent;
+        changedRoles.append(AccentRole);
+    }
+
+    if (changedRoles.isEmpty())
+        return;
+
+    const QModelIndex mi = createIndex(index, 0);
+    emit dataChanged(mi, mi, changedRoles);
+    if (index == m_activeIndex) {
+        if (changedRoles.contains(NameRole))
+            emit activeNameChanged();
+        if (changedRoles.contains(AccentRole))
+            emit activeIndexChanged();
+    }
     saveWorkspaceDefinitions();
 }
 
