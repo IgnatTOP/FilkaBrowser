@@ -14,7 +14,9 @@
 #include <QMutex>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
+#include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QSysInfo>
 #include <QtWebEngineQuick>
 
@@ -138,6 +140,46 @@ void installFileLogging()
     qInfo().noquote() << "File logging started:" << QDir::toNativeSeparators(gLogPath);
 }
 
+
+constexpr auto kPendingCleanupKey = "privacy/pendingWebEngineProfileCleanup";
+constexpr auto kPendingCleanupPathsKey = "privacy/pendingWebEngineProfileCleanupPaths";
+
+void performPendingBrowsingDataCleanup()
+{
+    QSettings store;
+    if (!store.value(QString::fromLatin1(kPendingCleanupKey), false).toBool())
+        return;
+
+    const QStringList paths = store.value(QString::fromLatin1(kPendingCleanupPathsKey)).toStringList();
+    bool allRemoved = true;
+    for (const QString &path : paths) {
+        const QString cleaned = QDir::cleanPath(path);
+        if (cleaned.isEmpty())
+            continue;
+
+        QDir dir(cleaned);
+        if (!dir.exists())
+            continue;
+
+        if (!dir.removeRecursively()) {
+            allRemoved = false;
+            qWarning().noquote() << "Filka: deferred WebEngine cleanup could not remove"
+                               << QDir::toNativeSeparators(cleaned);
+        } else {
+            qInfo().noquote() << "Filka: deferred WebEngine cleanup removed"
+                              << QDir::toNativeSeparators(cleaned);
+        }
+    }
+
+    if (allRemoved) {
+        store.remove(QString::fromLatin1(kPendingCleanupKey));
+        store.remove(QString::fromLatin1(kPendingCleanupPathsKey));
+    } else {
+        store.setValue(QString::fromLatin1(kPendingCleanupKey), true);
+    }
+    store.sync();
+}
+
 void shutdownFileLogging()
 {
     qInstallMessageHandler(nullptr);
@@ -159,6 +201,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("Filka Browser"));
     QCoreApplication::setApplicationVersion(QStringLiteral(FILKA_VERSION));
     installFileLogging();
+    performPendingBrowsingDataCleanup();
 
 #ifdef Q_OS_WIN
     qputenv("QTWEBENGINE_DISABLE_SANDBOX", "1");

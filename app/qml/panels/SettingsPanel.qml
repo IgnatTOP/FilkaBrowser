@@ -12,6 +12,8 @@ Item {
     property string query: ""
     property string adBlockListDraft: ""
     property string adBlockSiteDraft: ""
+    property string browsingDataStatus: BrowsingData.lastClearStatus
+    property bool browsingDataRestartRequired: BrowsingData.restartRequired
     signal requestClose()
 
     anchors.fill: parent
@@ -315,6 +317,14 @@ Item {
 
     ImportDialog {
         id: importDialog
+    }
+
+    Connections {
+        target: BrowsingData
+        function onLastClearStatusChanged() {
+            settingsRoot.browsingDataStatus = BrowsingData.lastClearStatus
+            settingsRoot.browsingDataRestartRequired = BrowsingData.restartRequired
+        }
     }
 
     Rectangle {
@@ -1080,20 +1090,44 @@ Item {
                         }
                         DangerRow {
                             Layout.fillWidth: true
-	                            label: qsTr("Очистить кэш")
-	                            act: (function() { BrowsingData.clearCache(settingsRoot.profile) })
-	                        }
+                            label: qsTr("Очистить кэш")
+                            hint: settingsRoot.browsingDataStatus.length > 0 && !settingsRoot.browsingDataRestartRequired
+                                  ? qsTr("очищено сейчас") : ""
+                            act: (function() {
+                                BrowsingData.clearCache(settingsRoot.profile)
+                                settingsRoot.browsingDataStatus = qsTr("Кэш очищается сейчас.")
+                                settingsRoot.browsingDataRestartRequired = false
+                            })
+                        }
                         DangerRow {
                             Layout.fillWidth: true
-	                            label: qsTr("Очистить cookie и данные сайтов")
-	                            hint: qsTr("выход со всех сайтов")
-	                            act: (function() { BrowsingData.clearAll(settingsRoot.profile) })
-	                        }
+                            label: qsTr("Очистить cookie и данные сайтов")
+                            hint: settingsRoot.browsingDataRestartRequired
+                                  ? qsTr("будет завершено после перезапуска")
+                                  : qsTr("выход со всех сайтов")
+                            act: (function() {
+                                settingsRoot.browsingDataStatus = BrowsingData.clearAll(settingsRoot.profile)
+                                settingsRoot.browsingDataRestartRequired = BrowsingData.restartRequired
+                            })
+                        }
+                        SettingRow {
+                            Layout.fillWidth: true
+                            visible: settingsRoot.browsingDataStatus.length > 0
+                            label: settingsRoot.browsingDataRestartRequired
+                                   ? qsTr("Очистка будет завершена после перезапуска")
+                                   : qsTr("Очищено сейчас")
+                            hint: settingsRoot.browsingDataStatus
+                            iconName: settingsRoot.browsingDataRestartRequired ? "refresh-cw" : "shield-check"
+                        }
                         DangerRow {
                             Layout.fillWidth: true
-	                            label: qsTr("Сбросить разрешения сайтов")
-	                            act: (function() { BrowsingData.clearPermissions(settingsRoot.profile) })
-	                        }
+                            label: qsTr("Сбросить разрешения сайтов")
+                            act: (function() {
+                                BrowsingData.clearPermissions(settingsRoot.profile)
+                                settingsRoot.browsingDataStatus = qsTr("Разрешения сайтов очищены сейчас.")
+                                settingsRoot.browsingDataRestartRequired = false
+                            })
+                        }
                     }
                 }
 
