@@ -37,14 +37,14 @@ Item {
     }
 
     // ---- JavaScript: collect text nodes as JSON array ----
-    readonly property string jsCollect: "(function(){var s={SCRIPT:1,STYLE:1,NOSCRIPT:1,CODE:1,PRE:1,TEXTAREA:1,INPUT:1,SELECT:1,SVG:1,MATH:1};var n=[];var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(x){var p=x.parentElement;if(!p||s[p.tagName]||!x.textContent.trim())return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT}});var nd;while(nd=w.nextNode())n.push(nd.textContent);return JSON.stringify(n)})()"
+    readonly property string jsCollect: "(function(){var a='data-filka-translate-id';var s={SCRIPT:1,STYLE:1,NOSCRIPT:1,CODE:1,PRE:1,TEXTAREA:1,INPUT:1,SELECT:1,SVG:1,MATH:1};window.__filkaTranslateOriginals=window.__filkaTranslateOriginals||{};window.__filkaTranslateSeq=window.__filkaTranslateSeq||0;var n=[];var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(x){var p=x.parentElement;if(!p||s[p.tagName]||!x.textContent.trim())return NodeFilter.FILTER_REJECT;if(p.closest&&p.closest('['+a+']'))return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT}});var nd;while(nd=w.nextNode())n.push(nd);var out=[];for(var i=0;i<n.length;i++){var id='ft-'+Date.now().toString(36)+'-'+(++window.__filkaTranslateSeq).toString(36);var span=document.createElement('span');span.setAttribute(a,id);span.textContent=n[i].textContent;window.__filkaTranslateOriginals[id]=n[i].textContent;n[i].parentNode.replaceChild(span,n[i]);out.push({id:id,text:span.textContent})}return JSON.stringify(out)})()"
 
     // ---- JavaScript: inject translated chunks ----
-    // Expects global arrays _m (indices) and _t (translations)
-    readonly property string jsInject: "(function(){var s={SCRIPT:1,STYLE:1,NOSCRIPT:1,CODE:1,PRE:1,TEXTAREA:1,INPUT:1,SELECT:1,SVG:1,MATH:1};var n=[];var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(x){var p=x.parentElement;if(!p||s[p.tagName]||!x.textContent.trim())return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT}});var nd;while(nd=w.nextNode())n.push(nd);var m={};for(var i=0;i<_m.length;i++)m[_m[i]]=_t[i];var r=0;for(var j=0;j<n.length;j++){if(m.hasOwnProperty(j)&&m[j]){n[j].textContent=m[j];r++}}return r})()"
+    // Expects global arrays _m (stable translate ids) and _t (translations)
+    readonly property string jsInject: "(function(){var a='data-filka-translate-id';var r=0;var missing=0;function find(id){var all=document.querySelectorAll('['+a+']');for(var j=0;j<all.length;j++){if(all[j].getAttribute(a)===id)return all[j]}return null}for(var i=0;i<_m.length;i++){var el=find(String(_m[i]));if(!el){missing++;continue}if(_t[i]){el.textContent=_t[i];r++}}return JSON.stringify({replaced:r,missing:missing,total:_m.length})})()"
 
     // ---- JavaScript: revert translations ----
-    readonly property string jsRevert: "(function(){var s={SCRIPT:1,STYLE:1,NOSCRIPT:1,CODE:1,PRE:1,TEXTAREA:1,INPUT:1,SELECT:1,SVG:1,MATH:1};var n=[];var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(x){var p=x.parentElement;if(!p||s[p.tagName]||!x.textContent.trim())return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT}});var nd;while(nd=w.nextNode())n.push(nd);for(var j=0;j<n.length&&j<_ot.length;j++)n[j].textContent=_ot[j];return n.length})()"
+    readonly property string jsRevert: "(function(){var a='data-filka-translate-id';var originals=window.__filkaTranslateOriginals||{};var restored=0;var missing=0;function find(id){var all=document.querySelectorAll('['+a+']');for(var j=0;j<all.length;j++){if(all[j].getAttribute(a)===id)return all[j]}return null}for(var i=0;i<_ot.length;i++){var item=_ot[i];var el=find(String(item.id));if(!el){missing++;continue}el.textContent=(originals[item.id]!==undefined)?originals[item.id]:item.text;restored++}return JSON.stringify({restored:restored,missing:missing,total:_ot.length})})()"
 
     property var originalTexts: []
     property int totalChunks: 0
@@ -70,7 +70,7 @@ Item {
             var current = []
             var currentLen = 0
             for (var i = 0; i < texts.length; i++) {
-                var seg = '[' + i + ']' + texts[i]
+                var seg = '[' + texts[i].id + ']' + texts[i].text
                 if (currentLen + seg.length > 4000 && current.length > 0) {
                     chunks.push(current.join(' '))
                     current = []
@@ -113,11 +113,11 @@ Item {
 
             // Parse markers and inject this chunk
             var segments = []
-            var regex = /\[(\d+)\]/g
+            var regex = /\[([A-Za-z0-9_-]+)\]/g
             var match
             var indices = []
             while ((match = regex.exec(result)) !== null) {
-                indices.push({ idx: parseInt(match[1]), pos: match.index, end: regex.lastIndex })
+                indices.push({ idx: match[1], pos: match.index, end: regex.lastIndex })
             }
             for (var i = 0; i < indices.length; i++) {
                 var start = indices[i].end
