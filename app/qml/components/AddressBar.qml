@@ -13,6 +13,7 @@ FocusScope {
     property bool secure: false
     property bool loading: false
     property real progress: 0          // 0..1
+    property bool privateMode: false
     signal navigate(string text)       // emitted with raw user text
     signal securityClicked()
 
@@ -86,7 +87,7 @@ FocusScope {
 
         // Web autocomplete phrases — only when they still match the typed text
         // and the input isn't itself a URL. Each becomes a search action.
-        if (AppSettings.networkSuggestionsEnabled && !root.looksLikeUrl(t)
+        if (!root.privateMode && AppSettings.networkSuggestionsEnabled && !root.looksLikeUrl(t)
                 && root.netQuery === t.toLowerCase()) {
             var seenPhrase = {}
             seenPhrase[t.toLowerCase()] = true
@@ -113,7 +114,7 @@ FocusScope {
     }
 
     function fetchSuggestions(t) {
-        if (!AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
+        if (root.privateMode || !AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
             return
         var req = new XMLHttpRequest()
         // Google's "firefox" client returns clean JSON: ["query", ["s1","s2",...]].
@@ -206,7 +207,7 @@ FocusScope {
             // so suggestions never pop up while pages navigate on their own.
             onTextEdited: {
                 root.rebuildSuggestions()
-                if (AppSettings.networkSuggestionsEnabled)
+                if (!root.privateMode && AppSettings.networkSuggestionsEnabled)
                     netDebounce.restart()
                 else
                     netDebounce.stop()

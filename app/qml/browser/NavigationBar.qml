@@ -107,6 +107,7 @@ Item {
             secure: root.browser.isSecure
             loading: root.browser.isLoading
             progress: root.browser.loadProgress
+            privateMode: root.browser.privateMode
             onNavigate: (text) => { if (root.browser.activeView) root.browser.activeView.url = text }
             onSecurityClicked: if (root.browser.currentUrl.length > 0) root.shell.toggleOverlay("siteInfo")
         }
