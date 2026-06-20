@@ -434,6 +434,7 @@ Item {
                 width: Math.min(760, parent.width - Theme.s6)
                 permission: shell.pendingPermission
                 onDecided: shell.pendingPermission = null
+                onSiteSettingsRequested: shell.activeOverlay = "siteInfo"
             }
 
             Item {
