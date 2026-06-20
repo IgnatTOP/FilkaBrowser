@@ -1,6 +1,7 @@
 #include "QuickLinkModel.h"
 
 #include <QVariantMap>
+#include <algorithm>
 
 namespace {
 struct DefaultLink {
@@ -124,6 +125,21 @@ void QuickLinkModel::add(const QString &title, const QUrl &url)
     const int row = m_items.size();
     beginInsertRows({}, row, row);
     m_items.append({titleOrHost(title, url), normalizedUrl(url)});
+    endInsertRows();
+    emit countChanged();
+    emit changed();
+    save();
+}
+
+
+void QuickLinkModel::insert(int index, const QString &title, const QUrl &url)
+{
+    if (!isAcceptableUrl(url))
+        return;
+
+    const int row = std::clamp(index, 0, m_items.size());
+    beginInsertRows({}, row, row);
+    m_items.insert(row, {titleOrHost(title, url), normalizedUrl(url)});
     endInsertRows();
     emit countChanged();
     emit changed();

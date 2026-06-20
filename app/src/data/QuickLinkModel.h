@@ -37,6 +37,7 @@ public:
     int count() const { return int(m_items.size()); }
 
     Q_INVOKABLE void add(const QString &title, const QUrl &url);
+    Q_INVOKABLE void insert(int index, const QString &title, const QUrl &url);
     Q_INVOKABLE void update(int index, const QString &title, const QUrl &url);
     Q_INVOKABLE void remove(int index);
     Q_INVOKABLE void move(int from, int to);

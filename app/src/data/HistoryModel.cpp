@@ -237,6 +237,47 @@ void HistoryModel::removeEntry(int index)
     }
 }
 
+
+void HistoryModel::restoreEntry(const QUrl &url, const QString &title, const QDateTime &lastVisit, int visitCount)
+{
+    if (!url.isValid() || (url.scheme() != QLatin1String("http")
+                           && url.scheme() != QLatin1String("https")))
+        return;
+
+    const QString key = url.toString();
+    if (indexOfUrl(key) >= 0)
+        return;
+
+    Entry e;
+    e.url = key;
+    e.title = title;
+    e.lastVisit = lastVisit.isValid() ? lastVisit.toUTC() : QDateTime::currentDateTimeUtc();
+    e.visitCount = std::max(1, visitCount);
+
+    int row = 0;
+    while (row < m_entries.size() && m_entries.at(row).lastVisit > e.lastVisit)
+        ++row;
+
+    beginInsertRows({}, row, row);
+    m_entries.insert(row, e);
+    endInsertRows();
+    emit countChanged();
+
+    if (m_db.isOpen()) {
+        QSqlQuery q(m_db);
+        q.prepare(QStringLiteral(
+            "INSERT OR REPLACE INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, ?)"));
+        q.addBindValue(e.url);
+        q.addBindValue(e.title);
+        q.addBindValue(e.lastVisit.toMSecsSinceEpoch());
+        q.addBindValue(e.visitCount);
+        if (!q.exec()) {
+            qWarning("Filka: could not restore history entry: %s",
+                     qPrintable(q.lastError().text()));
+        }
+    }
+}
+
 void HistoryModel::clear()
 {
     if (m_entries.isEmpty())

@@ -151,26 +151,16 @@ SidePanel {
                 }
             }
 
-            footer: Rectangle {
+            footer: ConfirmActionButton {
                 width: list.width
                 height: 38
-                radius: Theme.radiusSm
-                color: clearHover.hovered ? Theme.hoverFill : "transparent"
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: qsTr("Очистить завершённые загрузки")
-                Keys.onReturnPressed: root.clearList()
-                Keys.onEnterPressed: root.clearList()
-                Keys.onSpacePressed: root.clearList()
-                Text {
-                    anchors.centerIn: parent
-                    text: qsTr("Очистить завершённые")
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm
-                }
-                HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.clearList() }
+                iconName: "trash-2"
+                iconSize: 14
+                idleAccessibleName: qsTr("Очистить завершённые загрузки")
+                confirmAccessibleName: qsTr("Подтвердить очистку завершённых загрузок")
+                idleTooltip: qsTr("Очистить завершённые")
+                confirmTooltip: qsTr("Нажмите ещё раз, чтобы очистить завершённые загрузки")
+                onConfirmed: root.clearList()
             }
         }
     }

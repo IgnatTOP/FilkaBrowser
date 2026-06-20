@@ -135,6 +135,8 @@ qt_add_qml_module(filka
         qml/components/SectionLabel.qml
         qml/components/AccentSwatch.qml
         qml/components/FilkaScrollBar.qml
+        qml/components/ConfirmActionButton.qml
+        qml/components/UndoToast.qml
         qml/browser/BrowserView.qml
         qml/browser/ShellState.qml
         qml/browser/NavigationBar.qml

@@ -10,7 +10,6 @@ SidePanel {
     title: qsTr("История")
 
     signal navigate(string url)
-    property bool confirmClear: false
 
     // Human-friendly relative time ("5 мин назад", "вчера", or a date).
     function relTime(dt) {
@@ -32,11 +31,6 @@ SidePanel {
             id: toolbar
             width: parent.width
             height: 30
-            Timer {
-                id: clearConfirmTimer
-                interval: 2200
-                onTriggered: root.confirmClear = false
-            }
             Text {
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                 text: HistoryModel.count + " " + Theme.plural(HistoryModel.count, qsTr("запись"), qsTr("записи"), qsTr("записей"))
@@ -44,24 +38,16 @@ SidePanel {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeXs
             }
-            IconButton {
+            ConfirmActionButton {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 iconName: "trash-2"; size: 30; iconSize: 15
                 enabled: HistoryModel.count > 0
                 opacity: enabled ? 1 : 0.4
-                iconColor: Theme.danger
-                active: root.confirmClear
-                Accessible.name: root.confirmClear ? qsTr("Подтвердить очистку истории") : qsTr("Очистить историю")
-                onClicked: {
-                    if (!root.confirmClear) {
-                        root.confirmClear = true
-                        clearConfirmTimer.restart()
-                        return
-                    }
-                    clearConfirmTimer.stop()
-                    root.confirmClear = false
-                    HistoryModel.clear()
-                }
+                idleAccessibleName: qsTr("Очистить всю историю")
+                confirmAccessibleName: qsTr("Подтвердить очистку всей истории")
+                idleTooltip: qsTr("Очистить историю")
+                confirmTooltip: qsTr("Нажмите ещё раз, чтобы очистить историю")
+                onConfirmed: HistoryModel.clear()
             }
         }
 
@@ -118,6 +104,7 @@ SidePanel {
                 required property string title
                 required property string url
                 required property var lastVisit
+                required property int visitCount
 
                 HoverHandler { id: hover }
                 TapHandler { onTapped: root.navigate(row.url) }
@@ -159,11 +146,22 @@ SidePanel {
                     opacity: (hover.hovered || row.activeFocus) ? 1 : 0
                     visible: opacity > 0.01
                     iconName: "x"; size: 26; iconSize: 13
-                    Accessible.name: qsTr("Удалить запись")
-                    onClicked: HistoryModel.removeEntry(row.index)
+                    Accessible.name: qsTr("Удалить запись истории %1").arg(row.title)
+                    onClicked: {
+                        var removed = { title: row.title, url: row.url, lastVisit: row.lastVisit, visitCount: row.visitCount }
+                        HistoryModel.removeEntry(row.index)
+                        undoToast.show(qsTr("Запись удалена"), function() {
+                            HistoryModel.restoreEntry(removed.url, removed.title, removed.lastVisit, removed.visitCount)
+                        })
+                    }
                     Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
                 }
             }
+        }
+
+        UndoToast {
+            id: undoToast
+            parent: Overlay.overlay
         }
     }
 }

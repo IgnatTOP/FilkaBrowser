@@ -22,17 +22,18 @@ SidePanel {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeXs
             }
-            IconButton {
+            ConfirmActionButton {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 iconName: "trash-2"
                 size: 30
                 iconSize: 15
                 enabled: BookmarkModel.count > 0
                 opacity: enabled ? 1 : 0.4
-                iconColor: Theme.danger
-                tooltip: qsTr("Очистить закладки")
-                Accessible.name: qsTr("Очистить закладки")
-                onClicked: BookmarkModel.clear()
+                idleAccessibleName: qsTr("Очистить все закладки")
+                confirmAccessibleName: qsTr("Подтвердить очистку всех закладок")
+                idleTooltip: qsTr("Очистить закладки")
+                confirmTooltip: qsTr("Нажмите ещё раз, чтобы очистить закладки")
+                onConfirmed: BookmarkModel.clear()
             }
         }
 
@@ -122,8 +123,14 @@ SidePanel {
                     size: 26
                     iconSize: 13
                     tooltip: qsTr("Удалить закладку")
-                    Accessible.name: qsTr("Удалить закладку")
-                    onClicked: BookmarkModel.removeAt(row.index)
+                    Accessible.name: qsTr("Удалить закладку %1").arg(row.title)
+                    onClicked: {
+                        var removed = { title: row.title, url: row.url }
+                        BookmarkModel.removeAt(row.index)
+                        undoToast.show(qsTr("Закладка удалена"), function() {
+                            BookmarkModel.add(removed.url, removed.title)
+                        })
+                    }
                     Behavior on opacity { NumberAnimation { duration: Motion.fast; easing.type: Motion.standard } }
                 }
 
@@ -133,6 +140,11 @@ SidePanel {
                 Keys.onEnterPressed: root.navigate(row.url)
                 Keys.onSpacePressed: root.navigate(row.url)
             }
+        }
+
+        UndoToast {
+            id: undoToast
+            parent: Overlay.overlay
         }
     }
 }

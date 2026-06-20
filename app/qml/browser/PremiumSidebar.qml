@@ -344,9 +344,21 @@ Item {
         }
         MenuItem {
             text: qsTr("Удалить")
+            Accessible.name: qsTr("Удалить пространство %1").arg(workspaceMenu.targetName)
             enabled: root.workspaces && root.workspaces.count > 1
-            onTriggered: root.workspaces.removeWorkspace(workspaceMenu.targetIndex)
+            onTriggered: {
+                var removed = { index: workspaceMenu.targetIndex, name: workspaceMenu.targetName }
+                root.workspaces.removeWorkspace(workspaceMenu.targetIndex)
+                undoToast.show(qsTr("Пространство удалено"), function() {
+                    root.workspaces.addWorkspace(removed.name)
+                })
+            }
         }
+    }
+
+    UndoToast {
+        id: undoToast
+        parent: Overlay.overlay
     }
 
     Popup {

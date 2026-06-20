@@ -330,8 +330,14 @@ Item {
                                     iconName: "x"
                                     size: 24
                                     iconSize: 12
-                                    Accessible.name: qsTr("Удалить быструю ссылку")
-                                    onClicked: QuickLinkModel.remove(tileWrap.index)
+                                    Accessible.name: qsTr("Удалить быструю ссылку %1").arg(tileWrap.title)
+                                    onClicked: {
+                                        var removed = { index: tileWrap.index, title: tileWrap.title, url: tileWrap.url }
+                                        QuickLinkModel.remove(tileWrap.index)
+                                        undoToast.show(qsTr("Быстрая ссылка удалена"), function() {
+                                            QuickLinkModel.insert(removed.index, removed.title, removed.url)
+                                        })
+                                    }
                                 }
                             }
 
@@ -616,6 +622,11 @@ Item {
         OpacityAnimator { target: stage; from: 0; to: 1; duration: Motion.slow; easing.type: Motion.standard }
         ScaleAnimator { target: stage; from: 0.985; to: 1.0; duration: Motion.slow; easing.type: Motion.emphasized }
         OpacityAnimator { target: topActions; from: 0; to: 1; duration: Motion.slow; easing.type: Motion.standard }
+    }
+
+    UndoToast {
+        id: undoToast
+        parent: Overlay.overlay
     }
 
     Popup {
