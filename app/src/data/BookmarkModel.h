@@ -13,6 +13,7 @@
 #include <QString>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <qqmlregistration.h>
 
 class BookmarkModel : public QAbstractListModel
@@ -43,6 +44,7 @@ public:
     // Adds the URL if missing, removes it if present. Returns the new state.
     Q_INVOKABLE bool toggle(const QUrl &url, const QString &title);
     Q_INVOKABLE void add(const QUrl &url, const QString &title);
+    Q_INVOKABLE QVariantMap importEntries(const QVariantList &entries);
     Q_INVOKABLE void removeUrl(const QUrl &url);
     Q_INVOKABLE void removeAt(int index);
     Q_INVOKABLE void clear();

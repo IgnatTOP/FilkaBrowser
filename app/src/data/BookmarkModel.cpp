@@ -1,10 +1,13 @@
 #include "BookmarkModel.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
 #include <QVariant>
+#include <QVariantMap>
 
 BookmarkModel::BookmarkModel(QObject *parent) : QAbstractListModel(parent)
 {
@@ -145,6 +148,77 @@ void BookmarkModel::add(const QUrl &url, const QString &title)
                      qPrintable(q.lastError().text()));
         }
     }
+}
+
+QVariantMap BookmarkModel::importEntries(const QVariantList &entries)
+{
+    int added = 0;
+    int skippedDuplicates = 0;
+    int errors = 0;
+
+    if (entries.isEmpty()) {
+        return {{QStringLiteral("added"), 0},
+                {QStringLiteral("skippedDuplicates"), 0},
+                {QStringLiteral("errors"), 0}};
+    }
+
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    QList<Entry> pending;
+    pending.reserve(entries.size());
+
+    for (const QVariant &item : entries) {
+        const QVariantMap map = item.toMap();
+        const QUrl url(map.value(QStringLiteral("url")).toString());
+        if (!isWebUrl(url)) {
+            ++errors;
+            continue;
+        }
+
+        const QString key = url.toString();
+        if (indexOfUrl(key) >= 0) {
+            ++skippedDuplicates;
+            continue;
+        }
+
+        const auto duplicatePending = std::find_if(pending.cbegin(), pending.cend(), [&key](const Entry &entry) {
+            return entry.url == key;
+        });
+        if (duplicatePending != pending.cend()) {
+            ++skippedDuplicates;
+            continue;
+        }
+
+        pending.prepend({key, map.value(QStringLiteral("title")).toString(), now});
+    }
+
+    if (!pending.isEmpty()) {
+        beginInsertRows({}, 0, pending.size() - 1);
+        for (const Entry &entry : pending)
+            m_entries.prepend(entry);
+        endInsertRows();
+        added = pending.size();
+        emit countChanged();
+        emit changed();
+    }
+
+    if (m_db.isOpen() && !pending.isEmpty()) {
+        m_db.transaction();
+        QSqlQuery q(m_db);
+        q.prepare(QStringLiteral("INSERT OR IGNORE INTO bookmarks (url, title, added) VALUES (?, ?, ?)"));
+        for (const Entry &entry : pending) {
+            q.bindValue(0, entry.url);
+            q.bindValue(1, entry.title);
+            q.bindValue(2, entry.added.toMSecsSinceEpoch());
+            if (!q.exec())
+                ++errors;
+        }
+        if (!m_db.commit())
+            ++errors;
+    }
+
+    return {{QStringLiteral("added"), added},
+            {QStringLiteral("skippedDuplicates"), skippedDuplicates},
+            {QStringLiteral("errors"), errors}};
 }
 
 void BookmarkModel::removeUrl(const QUrl &url)

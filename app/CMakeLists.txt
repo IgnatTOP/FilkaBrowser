@@ -188,6 +188,7 @@ target_include_directories(filka PRIVATE
 
 target_link_libraries(filka PRIVATE
     Qt6::Core
+    Qt6::Concurrent
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick

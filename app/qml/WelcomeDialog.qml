@@ -456,12 +456,14 @@ Item {
 
                         function importAll(id) {
                             var bm = BrowserImporter.importBookmarks(id)
-                            for (var i = 0; i < bm.length; ++i)
-                                BookmarkModel.add(bm[i].url, bm[i].title)
+                            var bmResult = BookmarkModel.importEntries(bm)
                             var hs = BrowserImporter.importHistory(id)
-                            for (var j = 0; j < hs.length; ++j)
-                                HistoryModel.recordVisit(hs[j].url, hs[j].title)
-                            importNote = qsTr("Перенесено: %1 закладок, %2 записей истории").arg(bm.length).arg(hs.length)
+                            var hsResult = HistoryModel.importEntries(hs)
+                            importNote = qsTr("Перенесено: %1 закладок, %2 записей истории. Пропущено дублей: %3, ошибок: %4.")
+                                .arg(bmResult.added)
+                                .arg(hsResult.added)
+                                .arg(bmResult.skippedDuplicates + hsResult.skippedDuplicates)
+                                .arg(bmResult.errors + hsResult.errors)
                         }
 
                         ColumnLayout {

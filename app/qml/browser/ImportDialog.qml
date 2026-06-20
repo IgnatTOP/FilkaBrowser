@@ -20,24 +20,47 @@ Popup {
     property string resultText: ""
 
     function refresh() {
-        browsers = BrowserImporter.detectInstalled()
+        resultText = ""
+        BrowserImporter.startDetection()
     }
 
     function importBookmarks(browserId) {
-        const entries = BrowserImporter.importBookmarks(browserId)
-        for (let i = 0; i < entries.length; ++i)
-            BookmarkModel.add(entries[i].url, entries[i].title)
-        resultText = qsTr("Импортировано закладок: %1").arg(entries.length)
+        resultText = ""
+        BrowserImporter.startImportBookmarks(browserId)
     }
 
     function importHistory(browserId) {
-        const entries = BrowserImporter.importHistory(browserId)
-        for (let i = 0; i < entries.length; ++i)
-            HistoryModel.recordVisit(entries[i].url, entries[i].title)
-        resultText = qsTr("Импортировано записей истории: %1").arg(entries.length)
+        resultText = ""
+        BrowserImporter.startImportHistory(browserId)
+    }
+
+    function formatResult(kind, result) {
+        const label = kind === "bookmarks" ? qsTr("закладок") : qsTr("записей истории")
+        return qsTr("Импорт %1 завершён: добавлено %2, пропущено дублей %3, ошибок %4.")
+            .arg(label)
+            .arg(result.added)
+            .arg(result.skippedDuplicates)
+            .arg(result.errors)
     }
 
     onOpened: refresh()
+
+    Connections {
+        target: BrowserImporter
+        function onBrowsersChanged() {
+            root.browsers = BrowserImporter.browsers
+        }
+        function onBookmarksReady(entries) {
+            const result = BookmarkModel.importEntries(entries)
+            root.resultText = root.formatResult("bookmarks", result)
+            BrowserImporter.finishImportResult(result, "bookmarks")
+        }
+        function onHistoryReady(entries) {
+            const result = HistoryModel.importEntries(entries)
+            root.resultText = root.formatResult("history", result)
+            BrowserImporter.finishImportResult(result, "history")
+        }
+    }
 
     background: Rectangle {
         radius: Theme.radiusXl
@@ -124,6 +147,40 @@ Popup {
                     text: qsTr("Обновить")
                     enabled: !BrowserImporter.busy
                     onClicked: root.refresh()
+                }
+                GlassButton {
+                    text: qsTr("Отмена")
+                    visible: BrowserImporter.busy
+                    onClicked: BrowserImporter.cancel()
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.s2
+            Repeater {
+                model: [
+                    { key: "detection", label: qsTr("Detection") },
+                    { key: "reading", label: qsTr("Reading") },
+                    { key: "parsing", label: qsTr("Parsing") },
+                    { key: "importing", label: qsTr("Importing") }
+                ]
+                delegate: Rectangle {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 26
+                    radius: Theme.radiusPill
+                    color: BrowserImporter.stage === modelData.key ? Theme.accent : Theme.glassLow
+                    border.width: 1
+                    border.color: Theme.outline
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.label
+                        color: BrowserImporter.stage === modelData.key ? Theme.accentForeground : Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeXs
+                    }
                 }
             }
         }
