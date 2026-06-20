@@ -136,8 +136,8 @@ FocusScope {
                 Pill {
                     Layout.fillWidth: true
                     implicitHeight: 34
-                    accessibleName: qsTr("Сбросить разрешения для всех сайтов")
-                    onClicked: BrowsingData.clearPermissions(browser.profile)
+                    accessibleName: qsTr("Сбросить разрешения для текущего сайта")
+                    onClicked: BrowsingData.clearPermissionsForOrigin(browser.profile, browser.currentUrl)
                     Text {
                         text: qsTr("Сбросить разрешения")
                         color: Theme.textPrimary
@@ -148,10 +148,10 @@ FocusScope {
                 Pill {
                     Layout.fillWidth: true
                     implicitHeight: 34
-                    accessibleName: qsTr("Очистить cookie для всех сайтов")
-                    onClicked: BrowsingData.clearCookies(browser.profile)
+                    accessibleName: qsTr("Очистить cookies текущего сайта")
+                    onClicked: BrowsingData.clearCookiesForOrigin(browser.profile, browser.currentUrl)
                     Text {
-                        text: qsTr("Очистить cookie")
+                        text: qsTr("Очистить cookies")
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeXs

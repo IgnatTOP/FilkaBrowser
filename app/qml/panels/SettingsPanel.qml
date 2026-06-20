@@ -1080,20 +1080,22 @@ Item {
                         }
                         DangerRow {
                             Layout.fillWidth: true
-	                            label: qsTr("Очистить кэш")
-	                            act: (function() { BrowsingData.clearCache(settingsRoot.profile) })
-	                        }
+                            label: qsTr("Очистить кэш")
+                            hint: qsTr("Глобальное действие")
+                            act: (function() { BrowsingData.clearCache(settingsRoot.profile) })
+                        }
                         DangerRow {
                             Layout.fillWidth: true
-	                            label: qsTr("Очистить cookie и данные сайтов")
-	                            hint: qsTr("выход со всех сайтов")
-	                            act: (function() { BrowsingData.clearAll(settingsRoot.profile) })
-	                        }
+                            label: qsTr("Очистить cookies всех сайтов")
+                            hint: qsTr("Глобальное действие: выход со всех сайтов")
+                            act: (function() { BrowsingData.clearAll(settingsRoot.profile) })
+                        }
                         DangerRow {
                             Layout.fillWidth: true
-	                            label: qsTr("Сбросить разрешения сайтов")
-	                            act: (function() { BrowsingData.clearPermissions(settingsRoot.profile) })
-	                        }
+                            label: qsTr("Сбросить разрешения сайтов")
+                            hint: qsTr("Глобальное действие для всех сайтов")
+                            act: (function() { BrowsingData.clearPermissions(settingsRoot.profile) })
+                        }
                     }
                 }
 

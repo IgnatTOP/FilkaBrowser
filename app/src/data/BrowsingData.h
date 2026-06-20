@@ -7,6 +7,7 @@
 #pragma once
 
 #include <QObject>
+#include <QUrl>
 #include <qqmlregistration.h>
 
 class BrowsingData : public QObject
@@ -20,6 +21,8 @@ public:
 
     Q_INVOKABLE void clearCache(QObject *profile);
     Q_INVOKABLE void clearCookies(QObject *profile);
+    Q_INVOKABLE void clearCookiesForOrigin(QObject *profile, const QUrl &url);
     Q_INVOKABLE void clearPermissions(QObject *profile);
+    Q_INVOKABLE void clearPermissionsForOrigin(QObject *profile, const QUrl &url);
     Q_INVOKABLE void clearAll(QObject *profile);
 };
