@@ -136,6 +136,20 @@ void QuickLinkModel::add(const QString &title, const QUrl &url)
     save();
 }
 
+void QuickLinkModel::insert(int index, const QString &title, const QUrl &url)
+{
+    if (!isAcceptableUrl(url))
+        return;
+
+    const int row = std::clamp(index, 0, int(m_items.size()));
+    beginInsertRows({}, row, row);
+    m_items.insert(row, {titleOrHost(title, url), normalizedUrl(url)});
+    endInsertRows();
+    emit countChanged();
+    emit changed();
+    save();
+}
+
 void QuickLinkModel::update(int index, const QString &title, const QUrl &url)
 {
     if (index < 0 || index >= m_items.size() || !isAcceptableUrl(url))
@@ -194,7 +208,7 @@ void QuickLinkModel::restoreForUndo(int index, const QString &title, const QUrl 
     if (!isAcceptableUrl(url))
         return;
 
-    const int row = std::clamp(index, 0, m_items.size());
+    const int row = std::clamp(index, 0, int(m_items.size()));
     beginInsertRows({}, row, row);
     m_items.insert(row, {titleOrHost(title, url), normalizedUrl(url)});
     endInsertRows();

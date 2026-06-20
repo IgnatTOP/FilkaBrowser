@@ -12,6 +12,7 @@ FocusScope {
     property string displayUrl: ""
     property bool secure: false
     property bool loading: false
+    property bool privateMode: false
     property real progress: 0          // 0..1
     signal navigate(string text)       // emitted with raw user text
     signal securityClicked()

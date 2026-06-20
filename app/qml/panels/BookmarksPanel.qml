@@ -51,7 +51,6 @@ SidePanel {
             snackbar.visible = false
         }
     }
-    }
 
     Column {
         anchors.fill: parent

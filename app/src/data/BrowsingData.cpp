@@ -75,7 +75,7 @@ void BrowsingData::clearCookiesForOrigin(QObject *profile, const QUrl &url)
     disconnectTimer->setSingleShot(true);
     disconnectTimer->setInterval(250);
 
-    const QMetaObject::Connection *connection = new QMetaObject::Connection;
+    QMetaObject::Connection *connection = new QMetaObject::Connection;
     *connection = connect(cookies, &QWebEngineCookieStore::cookieAdded, cookies,
                           [cookies, host, connection, disconnectTimer](const QNetworkCookie &cookie) {
                               if (domainMatchesHost(cookie.domain(), host))

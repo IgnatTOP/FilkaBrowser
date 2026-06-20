@@ -37,7 +37,7 @@ bool sameOrigin(const QUrl &left, const QUrl &right)
 
 bool cookieMatchesHost(const QNetworkCookie &cookie, const QString &host)
 {
-    QString domain = QString::fromUtf8(cookie.domain()).toLower();
+    QString domain = cookie.domain().toLower();
     const QString needle = host.toLower();
     if (domain.startsWith(QLatin1Char('.')))
         domain.remove(0, 1);

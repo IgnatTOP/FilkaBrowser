@@ -25,10 +25,6 @@ Popup {
         BrowserImporter.startDetection()
     }
 
-    function formatResult(stats) {
-        resultText = qsTr("Добавлено %1, пропущено %2 дублей").arg(stats.added || 0).arg(stats.skipped || 0)
-    }
-
     function importBookmarks(browserId) {
         resultText = ""
         BrowserImporter.startImportBookmarks(browserId)

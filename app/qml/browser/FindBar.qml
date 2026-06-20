@@ -116,7 +116,6 @@ Item {
                         event.accepted = true
                     }
                 }
-                }
                 Keys.onEscapePressed: root.closeBar()
             }
             Text {

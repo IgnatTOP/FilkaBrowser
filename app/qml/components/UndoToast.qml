@@ -23,8 +23,6 @@ Popup {
     padding: Theme.s3
     implicitWidth: body.implicitWidth
     implicitHeight: body.implicitHeight
-    Accessible.role: Accessible.AlertMessage
-    Accessible.name: message
 
     onClosed: closeTimer.stop()
 
@@ -50,6 +48,8 @@ Popup {
     contentItem: Row {
         id: body
         spacing: Theme.s3
+        Accessible.role: Accessible.AlertMessage
+        Accessible.name: root.message
 
         Text {
             anchors.verticalCenter: parent.verticalCenter

@@ -467,8 +467,9 @@ Item {
                 }
                 width: Math.min(760, parent.width - Theme.s6)
                 permission: shell.pendingPermission
+                privateMode: root.privateMode
                 onDecided: shell.pendingPermission = null
-                onSiteSettingsRequested: shell.activeOverlay = "siteInfo"
+                onOpenSiteSettings: shell.activeOverlay = "siteInfo"
             }
 
             Item {

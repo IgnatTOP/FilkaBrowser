@@ -716,7 +716,6 @@ Item {
                             }
                             SettingRow {
                                 Layout.fillWidth: true
-                                showDivider: false
                                 label: qsTr("Масштаб новых вкладок")
                                 hint: qsTr("%1%").arg(Math.round(AppSettings.defaultZoom * 100))
                                 iconName: "gauge"
@@ -724,6 +723,20 @@ Item {
                                     spacing: Theme.s1
                                     IconButton { iconName: "minus"; size: 30; iconSize: 13; tooltip: qsTr("Уменьшить"); onClicked: AppSettings.defaultZoom = AppSettings.defaultZoom - 0.1 }
                                     IconButton { iconName: "plus"; size: 30; iconSize: 13; tooltip: qsTr("Увеличить"); onClicked: AppSettings.defaultZoom = AppSettings.defaultZoom + 0.1 }
+                                }
+                            }
+                            SettingRow {
+                                Layout.fillWidth: true
+                                showDivider: false
+                                label: qsTr("Автовоспроизведение медиа")
+                                hint: AppSettings.permissiveAutoplayEnabled
+                                      ? qsTr("Разрешено на всех сайтах.")
+                                      : qsTr("Разрешено только для доверенных музыкальных сервисов.")
+                                iconName: "volume-2"
+                                ToggleSwitch {
+                                    accessibleName: qsTr("Разрешить автовоспроизведение везде")
+                                    checked: AppSettings.permissiveAutoplayEnabled
+                                    onToggled: AppSettings.permissiveAutoplayEnabled = !AppSettings.permissiveAutoplayEnabled
                                 }
                             }
                         }

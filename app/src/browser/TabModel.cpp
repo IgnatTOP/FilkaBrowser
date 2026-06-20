@@ -31,6 +31,7 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
     case PinnedRole:  return t.pinned;
     case MutedRole:   return t.muted;
     case AudibleRole: return t.audible;
+    case IdRole:      return QVariant::fromValue(t.id);
     }
     return {};
 }
@@ -45,6 +46,7 @@ QHash<int, QByteArray> TabModel::roleNames() const
         {PinnedRole, "pinned"},
         {MutedRole, "muted"},
         {AudibleRole, "audible"},
+        {IdRole, "tabId"},
     };
     return roles;
 }
@@ -125,6 +127,7 @@ void TabModel::restore(const QStringList &urls, int activeIndex)
     m_tabs.clear();
     for (const QString &u : urls) {
         TabData t;
+        t.id = m_nextTabId++;
         t.url = QUrl(u);
         m_tabs.append(t);
     }
@@ -138,8 +141,14 @@ void TabModel::restore(const QStringList &urls, int activeIndex)
 int TabModel::insertTabData(int row, const TabData &tab, bool activate)
 {
     row = std::clamp(row, 0, int(m_tabs.size()));
+    TabData inserted = tab;
+    if (inserted.id == 0)
+        inserted.id = m_nextTabId++;
+    else
+        m_nextTabId = std::max(m_nextTabId, inserted.id + 1);
+
     beginInsertRows({}, row, row);
-    m_tabs.insert(row, tab);
+    m_tabs.insert(row, inserted);
     endInsertRows();
     emit countChanged();
     emit audibleTabsChanged();
@@ -171,6 +180,15 @@ int TabModel::addTab(const QUrl &url, bool activate)
 int TabModel::addTabAfter(int index, const QUrl &url, bool activate)
 {
     return insertTab(valid(index) ? index + 1 : int(m_tabs.size()), url, activate);
+}
+
+int TabModel::indexOfTabId(qulonglong id) const
+{
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs.at(i).id == id)
+            return i;
+    }
+    return -1;
 }
 
 int TabModel::duplicateTab(int index)
@@ -238,6 +256,41 @@ void TabModel::closeOthers(int index)
     }
     m_activeIndex = index;
     emit activeIndexChanged();
+    emit changed();
+}
+
+void TabModel::closeToLeft(int index)
+{
+    if (!valid(index))
+        return;
+
+    bool removed = false;
+    bool removedActive = false;
+    int targetIndex = index;
+    int nextActive = m_activeIndex;
+
+    for (int i = index - 1; i >= 0; --i) {
+        if (m_tabs.at(i).pinned)
+            continue;
+
+        if (i == m_activeIndex)
+            removedActive = true;
+        else if (i < m_activeIndex)
+            --nextActive;
+
+        removeRow(i);
+        --targetIndex;
+        removed = true;
+    }
+
+    if (!removed)
+        return;
+
+    const int oldActive = m_activeIndex;
+    m_activeIndex = removedActive ? targetIndex : nextActive;
+    m_activeIndex = std::clamp(m_activeIndex, 0, int(m_tabs.size()) - 1);
+    if (removedActive || m_activeIndex != oldActive)
+        emit activeIndexChanged();
     emit changed();
 }
 

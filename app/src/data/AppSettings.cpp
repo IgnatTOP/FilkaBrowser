@@ -5,6 +5,8 @@
 #include <QStandardPaths>
 #include <QUrl>
 
+#include <array>
+
 namespace {
 // name -> query-string template (%1 is replaced by the encoded query).
 struct Engine {
@@ -23,6 +25,16 @@ const Engine kEngines[] = {
      "https://api.bing.com/osjson.aspx?query=%1", "firefox-array", "Bing"},
     {"Yandex",     "https://yandex.ru/search/?text=%1",
      "https://suggest.yandex.ru/suggest-ff.cgi?part=%1", "firefox-array", "Yandex"},
+};
+
+constexpr std::array kTrustedAutoplayDomains = {
+    "music.youtube.com",
+    "open.spotify.com",
+    "soundcloud.com",
+    "music.apple.com",
+    "deezer.com",
+    "tidal.com",
+    "bandcamp.com",
 };
 
 QString writableOrFallback(QStandardPaths::StandardLocation location,
@@ -70,6 +82,33 @@ QString defaultDisplayName()
         return QStringLiteral("Ignat");
     user[0] = user.at(0).toUpper();
     return user;
+}
+
+QString permissionOriginKey(const QString &origin)
+{
+    const QUrl url(origin);
+    if (!url.isValid() || url.host().isEmpty())
+        return origin.trimmed().toLower();
+
+    QString key = url.scheme().toLower() + QStringLiteral("://") + url.host().toLower();
+    if (url.port() >= 0)
+        key += QStringLiteral(":") + QString::number(url.port());
+    return key;
+}
+
+QString permissionDecisionKey(const QString &origin, int permissionType)
+{
+    QString key = permissionOriginKey(origin);
+    key.replace(QLatin1Char('/'), QLatin1Char('_'));
+    return QStringLiteral("permissions/sites/%1/%2").arg(key, QString::number(permissionType));
+}
+
+QString normalizedPermissionDecision(const QString &decision)
+{
+    const QString clean = decision.trimmed().toLower();
+    if (clean == QLatin1String("allow") || clean == QLatin1String("block"))
+        return clean;
+    return QString();
 }
 
 
@@ -131,6 +170,7 @@ AppSettings::AppSettings(QObject *parent) : QObject(parent)
     m_defaultZoom = qBound(0.5, m_store.value(QStringLiteral("tabs/defaultZoom"), 1.0).toDouble(), 2.0);
     m_translatorCacheEnabled = m_store.value(QStringLiteral("translator/cacheEnabled"), true).toBool();
     m_translatorAutoOffer = m_store.value(QStringLiteral("translator/autoOffer"), true).toBool();
+    m_permissiveAutoplayEnabled = m_store.value(QStringLiteral("media/permissiveAutoplayEnabled"), false).toBool();
 }
 
 void AppSettings::setOnboarded(bool value)
@@ -335,6 +375,16 @@ void AppSettings::setTranslatorAutoOffer(bool value)
     emit translatorAutoOfferChanged();
 }
 
+void AppSettings::setPermissiveAutoplayEnabled(bool value)
+{
+    if (m_permissiveAutoplayEnabled == value)
+        return;
+    m_permissiveAutoplayEnabled = value;
+    m_store.setValue(QStringLiteral("media/permissiveAutoplayEnabled"), value);
+    m_store.sync();
+    emit permissiveAutoplayEnabledChanged();
+}
+
 QStringList AppSettings::searchEngines() const
 {
     QStringList names;
@@ -373,6 +423,20 @@ QString AppSettings::searchUrl(const QString &query) const
     return QString::fromLatin1(activeEngine(m_searchEngine)->query).arg(encoded);
 }
 
+bool AppSettings::isTrustedAutoplayHost(const QUrl &url) const
+{
+    const QString host = url.host().toLower();
+    if (host.isEmpty())
+        return false;
+
+    for (const char *domain : kTrustedAutoplayDomains) {
+        const QString trusted = QString::fromLatin1(domain);
+        if (host == trusted || host.endsWith(QLatin1Char('.') + trusted))
+            return true;
+    }
+    return false;
+}
+
 QString AppSettings::suggestUrl(const QString &query) const
 {
     const Engine *engine = activeEngine(m_searchEngine);
@@ -400,4 +464,36 @@ QString AppSettings::suggestionProviderName() const
     if (!networkSuggestionsSupported())
         return tr("не поддерживается для %1").arg(QString::fromLatin1(engine->name));
     return QString::fromLatin1(engine->suggestProvider);
+}
+
+QString AppSettings::sitePermissionDecision(const QString &origin, int permissionType) const
+{
+    return normalizedPermissionDecision(
+        m_store.value(permissionDecisionKey(origin, permissionType)).toString());
+}
+
+void AppSettings::setSitePermissionDecision(const QString &origin, int permissionType, const QString &decision)
+{
+    const QString normalized = normalizedPermissionDecision(decision);
+    if (normalized.isEmpty()) {
+        clearSitePermissionDecision(origin, permissionType);
+        return;
+    }
+
+    m_store.setValue(permissionDecisionKey(origin, permissionType), normalized);
+    m_store.sync();
+}
+
+void AppSettings::clearSitePermissionDecision(const QString &origin, int permissionType)
+{
+    m_store.remove(permissionDecisionKey(origin, permissionType));
+    m_store.sync();
+}
+
+void AppSettings::clearSitePermissionDecisions()
+{
+    m_store.beginGroup(QStringLiteral("permissions/sites"));
+    m_store.remove(QString());
+    m_store.endGroup();
+    m_store.sync();
 }

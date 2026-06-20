@@ -114,6 +114,7 @@ Item {
     }
 
     component PillButton: Pill {
+        id: pillButton
         property string label: ""
         property bool primary: false
         anchors.verticalCenter: parent.verticalCenter
@@ -124,9 +125,9 @@ Item {
         fillColor: primary ? (hovered ? Theme.accent : Theme.accentSoft) : (hovered ? Theme.hoverFill : Theme.surfaceAlt)
         accessibleName: label
         Text {
-            text: parent.label
-            color: parent.primary ? (parent.hovered ? Theme.accentForeground : Theme.accentSoftForeground) : Theme.textSecondary
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs; font.weight: parent.primary ? Font.Medium : Font.Normal
+            text: pillButton.label
+            color: pillButton.primary ? (pillButton.hovered ? Theme.accentForeground : Theme.accentSoftForeground) : Theme.textSecondary
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeXs; font.weight: pillButton.primary ? Font.Medium : Font.Normal
         }
     }
 }
