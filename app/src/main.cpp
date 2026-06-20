@@ -161,7 +161,16 @@ int main(int argc, char *argv[])
     installFileLogging();
 
 #ifdef Q_OS_WIN
-    qputenv("QTWEBENGINE_DISABLE_SANDBOX", "1");
+    // Keep the Qt WebEngine/Chromium sandbox enabled in production builds.
+    // Only disable it for explicit local diagnostics; missing Windows runtime
+    // files must be fixed with windeployqt packaging instead of weakening the
+    // renderer sandbox.
+    if (qEnvironmentVariable("FILKA_DISABLE_WEBENGINE_SANDBOX") == QStringLiteral("1")) {
+        qWarning().noquote()
+            << "FILKA_DISABLE_WEBENGINE_SANDBOX=1 is set; disabling Qt WebEngine sandbox "
+               "for diagnostics only.";
+        qputenv("QTWEBENGINE_DISABLE_SANDBOX", "1");
+    }
 #endif
 
     // --- Chromium tuning (must be set before WebEngine is initialised) ---
