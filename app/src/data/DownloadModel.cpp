@@ -152,6 +152,37 @@ int DownloadModel::indexOfRequest(QWebEngineDownloadRequest *request) const
     return -1;
 }
 
+
+QString DownloadModel::normalizedDirectoryPath(const QString &directory) const
+{
+    const QString trimmed = directory.trimmed();
+    if (trimmed.isEmpty())
+        return {};
+
+    const QString cleanPath = QDir::cleanPath(trimmed);
+    if (cleanPath.isEmpty() || cleanPath == QLatin1String("."))
+        return {};
+
+    return QDir(cleanPath).absolutePath();
+}
+
+bool DownloadModel::canNormalizeDirectory(const QString &directory) const
+{
+    return !normalizedDirectoryPath(directory).isEmpty();
+}
+
+bool DownloadModel::directoryExists(const QString &directory) const
+{
+    const QString normalized = normalizedDirectoryPath(directory);
+    return !normalized.isEmpty() && QDir(normalized).exists();
+}
+
+bool DownloadModel::createDirectory(const QString &directory) const
+{
+    const QString normalized = normalizedDirectoryPath(directory);
+    return !normalized.isEmpty() && QDir().mkpath(normalized);
+}
+
 int DownloadModel::acceptDownload(QObject *download, const QString &directory,
                                   const QString &fileName, bool privateDownload)
 {
@@ -178,9 +209,10 @@ int DownloadModel::acceptDownload(QObject *download, const QString &directory,
         emit publicCountChanged();
     }
 
-    if (!directory.trimmed().isEmpty()) {
-        QDir().mkpath(directory.trimmed());
-        request->setDownloadDirectory(QDir(directory.trimmed()).absolutePath());
+    const QString normalizedDirectory = normalizedDirectoryPath(directory);
+    if (!normalizedDirectory.isEmpty()) {
+        QDir().mkpath(normalizedDirectory);
+        request->setDownloadDirectory(normalizedDirectory);
     }
     if (!fileName.trimmed().isEmpty())
         request->setDownloadFileName(QFileInfo(fileName.trimmed()).fileName());
