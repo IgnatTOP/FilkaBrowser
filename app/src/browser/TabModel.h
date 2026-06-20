@@ -54,6 +54,7 @@ public:
     Q_INVOKABLE int duplicateTab(int index);
     Q_INVOKABLE void closeTab(int index);
     Q_INVOKABLE void closeOthers(int index);
+    Q_INVOKABLE void closeToLeft(int index);
     Q_INVOKABLE void closeToRight(int index);
     Q_INVOKABLE void moveTab(int from, int to);
     Q_INVOKABLE void setPinned(int index, bool pinned);

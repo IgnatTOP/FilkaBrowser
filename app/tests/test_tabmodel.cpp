@@ -75,6 +75,25 @@ private slots:
         QCOMPARE(changedSpy.size(), 1);
     }
 
+    void closeToLeftPreservesPinnedTabs()
+    {
+        TabModel tabs;
+        tabs.addTab(QUrl(QStringLiteral("https://pinned.example")));
+        tabs.addTab(QUrl(QStringLiteral("https://one.example")));
+        tabs.addTab(QUrl(QStringLiteral("https://two.example")));
+        tabs.addTab(QUrl(QStringLiteral("https://target.example")));
+        tabs.setPinned(0, true);
+
+        tabs.closeToLeft(3);
+
+        QCOMPARE(tabs.rowCount(), 2);
+        QCOMPARE(tabs.activeIndex(), 1);
+        QCOMPARE(tabs.tabUrls(), QStringList({
+                     QStringLiteral("https://pinned.example"),
+                     QStringLiteral("https://target.example"),
+                 }));
+    }
+
     void historyRevisitMovesRowSafely()
     {
         HistoryModel history;

@@ -91,6 +91,11 @@ Menu {
         onTriggered: if (menu.tabsModel) menu.tabsModel.closeOthers(menu.tabIndex)
     }
     MItem {
+        text: qsTr("Закрыть вкладки слева")
+        enabled: menu.tabsModel && menu.tabIndex > 0
+        onTriggered: if (menu.tabsModel) menu.tabsModel.closeToLeft(menu.tabIndex)
+    }
+    MItem {
         text: qsTr("Закрыть вкладки справа")
         enabled: menu.tabsModel && menu.tabIndex < menu.tabsModel.count - 1
         onTriggered: if (menu.tabsModel) menu.tabsModel.closeToRight(menu.tabIndex)
