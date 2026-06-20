@@ -127,17 +127,24 @@ Item {
         opacity: 0
 
         GlassCard {
-            width: weatherRow.implicitWidth + Theme.s4
+            width: statusRow.implicitWidth + Theme.s4
             height: 34
             radius: Theme.radiusPill
+            color: root.privateMode ? Theme.activeFill : Theme.glassMed
             Row {
-                id: weatherRow
+                id: statusRow
                 anchors.centerIn: parent
                 spacing: 7
-                Icon { anchors.verticalCenter: parent.verticalCenter; name: "sun"; size: 15; color: Theme.brandLavender }
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: root.privateMode ? "shield-check" : (AdBlockManager.enabled ? "shield" : "globe")
+                    size: 15
+                    color: root.privateMode ? Theme.positive : Theme.brandLavender
+                }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("21°C  Барселона")
+                    text: root.privateMode ? qsTr("Приватный режим")
+                         : (AdBlockManager.enabled ? qsTr("Защита включена") : qsTr("Обычный режим"))
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeXs
