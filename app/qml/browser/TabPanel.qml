@@ -23,6 +23,7 @@ Item {
 
     TabStrip {
         tabs: root.workspaces.activeTabs
+        workspaceModel: root.workspaces
         vertical: root.vertical
         anchors { left: switcher.right; right: parent.right; top: parent.top; bottom: parent.bottom }
         anchors.leftMargin: Theme.s1

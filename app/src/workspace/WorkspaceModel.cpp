@@ -319,6 +319,30 @@ void WorkspaceModel::setTabMuted(int workspaceIndex, int tabIndex, bool muted)
     m_items.at(workspaceIndex).tabs->setMuted(tabIndex, muted);
 }
 
+int WorkspaceModel::moveTabToWorkspace(int fromWorkspace, int tabIndex, int toWorkspace, bool activateMoved)
+{
+    if (!valid(fromWorkspace) || !valid(toWorkspace) || fromWorkspace == toWorkspace)
+        return -1;
+
+    TabModel *source = m_items.at(fromWorkspace).tabs;
+    TabModel *target = m_items.at(toWorkspace).tabs;
+    if (!source || !target)
+        return -1;
+
+    const int movedIndex = source->moveTabTo(target, tabIndex, activateMoved);
+    if (movedIndex < 0)
+        return -1;
+
+    emit tabSummariesChanged();
+    if (activateMoved) {
+        setActiveIndex(toWorkspace);
+        target->setActiveIndex(movedIndex);
+    } else {
+        scheduleSave();
+    }
+    return movedIndex;
+}
+
 int WorkspaceModel::addWorkspace(const QString &name, const QString &glyph, const QColor &accent)
 {
     const QString cleanName = name.trimmed().isEmpty()

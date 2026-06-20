@@ -135,13 +135,11 @@ void TabModel::restore(const QStringList &urls, int activeIndex)
     emit audibleTabsChanged();
 }
 
-int TabModel::insertTab(int row, const QUrl &url, bool activate)
+int TabModel::insertTabData(int row, const TabData &tab, bool activate)
 {
     row = std::clamp(row, 0, int(m_tabs.size()));
     beginInsertRows({}, row, row);
-    TabData t;
-    t.url = url.isEmpty() ? kHomeUrl : url;
-    m_tabs.insert(row, t);
+    m_tabs.insert(row, tab);
     endInsertRows();
     emit countChanged();
     emit audibleTabsChanged();
@@ -156,6 +154,13 @@ int TabModel::insertTab(int row, const QUrl &url, bool activate)
     if (activate)
         setActiveIndex(row);
     return row;
+}
+
+int TabModel::insertTab(int row, const QUrl &url, bool activate)
+{
+    TabData t;
+    t.url = url.isEmpty() ? kHomeUrl : url;
+    return insertTabData(row, t, activate);
 }
 
 int TabModel::addTab(const QUrl &url, bool activate)
@@ -283,6 +288,36 @@ void TabModel::moveTab(int from, int to)
     if (m_activeIndex != oldActive)
         emit activeIndexChanged();
     emit changed();
+}
+
+int TabModel::moveTabTo(TabModel *target, int index, bool activate)
+{
+    if (!target || target == this || !valid(index))
+        return -1;
+
+    const TabData moved = m_tabs.at(index);
+    const int inserted = target->insertTabData(target->count(), moved, activate);
+
+    beginRemoveRows({}, index, index);
+    m_tabs.removeAt(index);
+    endRemoveRows();
+    emit countChanged();
+    emit audibleTabsChanged();
+
+    if (m_tabs.isEmpty()) {
+        addTab();
+    } else {
+        int next = m_activeIndex;
+        if (index < m_activeIndex)
+            next = m_activeIndex - 1;
+        else if (index == m_activeIndex)
+            next = m_activeIndex > 0 ? m_activeIndex - 1 : 0;
+        m_activeIndex = std::clamp(next, 0, int(m_tabs.size()) - 1);
+        emit activeIndexChanged();
+        emit changed();
+    }
+
+    return inserted;
 }
 
 void TabModel::setPinned(int index, bool pinned)

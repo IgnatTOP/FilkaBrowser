@@ -56,6 +56,7 @@ public:
     Q_INVOKABLE void closeOthers(int index);
     Q_INVOKABLE void closeToRight(int index);
     Q_INVOKABLE void moveTab(int from, int to);
+    int moveTabTo(TabModel *target, int index, bool activate);
     Q_INVOKABLE void setPinned(int index, bool pinned);
     Q_INVOKABLE void setMuted(int index, bool muted);
     Q_INVOKABLE bool isMuted(int index) const { return valid(index) && m_tabs[index].muted; }
@@ -106,6 +107,7 @@ private:
 
     // Shared insert + remove primitives used by the lifecycle invokables.
     int insertTab(int row, const QUrl &url, bool activate);
+    int insertTabData(int row, const TabData &tab, bool activate);
     void removeRow(int index);
 
     bool valid(int index) const { return index >= 0 && index < int(m_tabs.size()); }

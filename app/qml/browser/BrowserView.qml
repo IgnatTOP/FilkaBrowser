@@ -350,6 +350,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         tabs: workspaces.activeTabs
+                        workspaceModel: workspaces
                         vertical: false
                         onScreenshotRequested: (tabIndex) => root.screenshotTab(tabIndex)
                     }

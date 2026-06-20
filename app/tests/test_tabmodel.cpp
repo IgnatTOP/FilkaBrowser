@@ -136,6 +136,34 @@ private slots:
         QVERIFY(urls.contains(QStringLiteral("https://after-reset.example")));
     }
 
+    void moveTabToWorkspaceCanStayOrFollow()
+    {
+        WorkspaceModel workspaces;
+        workspaces.resetWorkspaces();
+        TabModel *source = workspaces.tabsAt(0);
+        TabModel *target = workspaces.tabsAt(1);
+        QVERIFY(source);
+        QVERIFY(target);
+
+        source->addTab(QUrl(QStringLiteral("https://moved.example")));
+        source->updateTitle(1, QStringLiteral("Moved tab"));
+        source->setPinned(1, true);
+        QCOMPARE(workspaces.activeIndex(), 0);
+
+        QCOMPARE(workspaces.moveTabToWorkspace(0, 1, 1), 1);
+        QCOMPARE(workspaces.activeIndex(), 0);
+        QCOMPARE(source->rowCount(), 1);
+        QCOMPARE(target->tabUrls().at(1), QStringLiteral("https://moved.example"));
+        QCOMPARE(target->data(target->index(1, 0), TabModel::TitleRole).toString(),
+                 QStringLiteral("Moved tab"));
+        QVERIFY(target->data(target->index(1, 0), TabModel::PinnedRole).toBool());
+
+        QCOMPARE(workspaces.moveTabToWorkspace(1, 1, 2, true), 1);
+        QCOMPARE(workspaces.activeIndex(), 2);
+        QCOMPARE(workspaces.activeTabs()->activeIndex(), 1);
+        QCOMPARE(workspaces.activeTabs()->tabUrls().at(1), QStringLiteral("https://moved.example"));
+    }
+
     void bookmarkToggleRejectsInvalidUrl()
     {
         BookmarkModel bookmarks;

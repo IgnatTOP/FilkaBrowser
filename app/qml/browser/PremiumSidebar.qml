@@ -253,6 +253,7 @@ Item {
             Layout.fillHeight: root.browser.verticalTabs
             visible: root.browser.verticalTabs
             tabs: root.workspaces.activeTabs
+            workspaceModel: root.workspaces
             vertical: true
             onScreenshotRequested: (tabIndex) => root.browser.screenshotTab(tabIndex)
         }
