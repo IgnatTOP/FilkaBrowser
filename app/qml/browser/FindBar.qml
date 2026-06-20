@@ -22,6 +22,7 @@ Item {
 
     function openBar() { field.forceActiveFocus(); field.selectAll() }
     function closeBar() {
+        searchDebounce.stop()
         if (view)
             view.findText("")
         field.text = ""
@@ -44,6 +45,13 @@ Item {
         activeMatch = 0
         if (active && view && field.text.length > 0)
             findNext(false)
+    }
+
+    Timer {
+        id: searchDebounce
+        interval: 150
+        repeat: false
+        onTriggered: root.findNext(false)
     }
 
     Connections {
@@ -83,8 +91,19 @@ Item {
                 background: null
                 placeholderText: qsTr("Поиск на странице")
                 placeholderTextColor: Theme.textMuted
-                onTextChanged: root.findNext(false)
-                onAccepted: root.findNext(false)
+                onTextChanged: {
+                    searchDebounce.stop()
+                    if (text.length === 0) {
+                        root.matchCount = 0
+                        root.activeMatch = 0
+                        return
+                    }
+                    searchDebounce.restart()
+                }
+                onAccepted: {
+                    searchDebounce.stop()
+                    root.findNext(false)
+                }
                 Keys.onEscapePressed: root.closeBar()
             }
             Text {
@@ -99,8 +118,8 @@ Item {
         Row {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: Theme.s1 }
             spacing: 0
-            IconButton { iconName: "chevron-left";  size: 30; Accessible.name: qsTr("Назад");   onClicked: root.findNext(true) }
-            IconButton { iconName: "chevron-right"; size: 30; Accessible.name: qsTr("Вперёд");  onClicked: root.findNext(false) }
+            IconButton { iconName: "chevron-left";  size: 30; Accessible.name: qsTr("Назад");   onClicked: { searchDebounce.stop(); root.findNext(true) } }
+            IconButton { iconName: "chevron-right"; size: 30; Accessible.name: qsTr("Вперёд");  onClicked: { searchDebounce.stop(); root.findNext(false) } }
             IconButton { iconName: "x";             size: 30; Accessible.name: qsTr("Закрыть"); onClicked: root.closeBar() }
         }
     }
