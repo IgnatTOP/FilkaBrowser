@@ -31,6 +31,7 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
     case PinnedRole:  return t.pinned;
     case MutedRole:   return t.muted;
     case AudibleRole: return t.audible;
+    case IdRole:      return QVariant::fromValue(t.id);
     }
     return {};
 }
@@ -45,6 +46,7 @@ QHash<int, QByteArray> TabModel::roleNames() const
         {PinnedRole, "pinned"},
         {MutedRole, "muted"},
         {AudibleRole, "audible"},
+        {IdRole, "tabId"},
     };
     return roles;
 }
@@ -125,6 +127,7 @@ void TabModel::restore(const QStringList &urls, int activeIndex)
     m_tabs.clear();
     for (const QString &u : urls) {
         TabData t;
+        t.id = m_nextTabId++;
         t.url = QUrl(u);
         m_tabs.append(t);
     }
@@ -140,6 +143,7 @@ int TabModel::insertTab(int row, const QUrl &url, bool activate)
     row = std::clamp(row, 0, int(m_tabs.size()));
     beginInsertRows({}, row, row);
     TabData t;
+    t.id = m_nextTabId++;
     t.url = url.isEmpty() ? kHomeUrl : url;
     m_tabs.insert(row, t);
     endInsertRows();
@@ -166,6 +170,15 @@ int TabModel::addTab(const QUrl &url, bool activate)
 int TabModel::addTabAfter(int index, const QUrl &url, bool activate)
 {
     return insertTab(valid(index) ? index + 1 : int(m_tabs.size()), url, activate);
+}
+
+int TabModel::indexOfTabId(qulonglong id) const
+{
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs.at(i).id == id)
+            return i;
+    }
+    return -1;
 }
 
 int TabModel::duplicateTab(int index)

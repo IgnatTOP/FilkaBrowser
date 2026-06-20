@@ -33,6 +33,7 @@ public:
         PinnedRole,
         MutedRole,
         AudibleRole,
+        IdRole,
     };
     Q_ENUM(Roles)
 
@@ -59,6 +60,7 @@ public:
     Q_INVOKABLE void setPinned(int index, bool pinned);
     Q_INVOKABLE void setMuted(int index, bool muted);
     Q_INVOKABLE bool isMuted(int index) const { return valid(index) && m_tabs[index].muted; }
+    Q_INVOKABLE int indexOfTabId(qulonglong id) const;
 
     // Reopen the most recently closed tab (Ctrl+Shift+T). Returns its new row,
     // or -1 when the closed-tab stack is empty.
@@ -93,7 +95,10 @@ private:
         bool pinned = false;
         bool muted = false;
         bool audible = false;
+        quint64 id = 0;
     };
+
+    quint64 m_nextTabId = 1;
 
     QList<TabData> m_tabs;
     int m_activeIndex = -1;
