@@ -4,7 +4,9 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
+#include <QSet>
 #include <QVariant>
+#include <utility>
 
 BookmarkModel::BookmarkModel(QObject *parent) : QAbstractListModel(parent)
 {
@@ -208,6 +210,75 @@ QVariantList BookmarkModel::search(const QString &query, int limit) const
         }
     }
     return out;
+}
+
+QVariantList BookmarkModel::all() const
+{
+    QVariantList out;
+    out.reserve(m_entries.size());
+    for (const Entry &e : m_entries) {
+        out.append(QVariantMap{
+            {QStringLiteral("title"), e.title},
+            {QStringLiteral("url"), e.url},
+            {QStringLiteral("added"), e.added.toMSecsSinceEpoch()},
+        });
+    }
+    return out;
+}
+
+void BookmarkModel::restore(const QVariantList &bookmarks)
+{
+    QList<Entry> restored;
+    restored.reserve(bookmarks.size());
+
+    QSet<QString> seen;
+    for (const QVariant &bookmark : bookmarks) {
+        const QVariantMap map = bookmark.toMap();
+        const QUrl url(map.value(QStringLiteral("url")).toString());
+        if (!isWebUrl(url))
+            continue;
+
+        const QString key = url.toString();
+        if (seen.contains(key))
+            continue;
+        seen.insert(key);
+
+        Entry e;
+        e.url = key;
+        e.title = map.value(QStringLiteral("title")).toString();
+        e.added = QDateTime::fromMSecsSinceEpoch(map.value(QStringLiteral("added")).toLongLong(), Qt::UTC);
+        if (!e.added.isValid())
+            e.added = QDateTime::currentDateTimeUtc().addMSecs(-restored.size());
+        restored.append(e);
+    }
+
+    beginResetModel();
+    m_entries = restored;
+    endResetModel();
+    emit countChanged();
+    emit changed();
+
+    if (m_db.isOpen()) {
+        QSqlQuery clearQuery(m_db);
+        if (!clearQuery.exec(QStringLiteral("DELETE FROM bookmarks"))) {
+            qWarning("Filka: could not clear bookmarks before restore: %s",
+                     qPrintable(clearQuery.lastError().text()));
+            return;
+        }
+
+        for (const Entry &e : std::as_const(m_entries)) {
+            QSqlQuery insertQuery(m_db);
+            insertQuery.prepare(QStringLiteral(
+                "INSERT OR REPLACE INTO bookmarks (url, title, added) VALUES (?, ?, ?)"));
+            insertQuery.addBindValue(e.url);
+            insertQuery.addBindValue(e.title);
+            insertQuery.addBindValue(e.added.toMSecsSinceEpoch());
+            if (!insertQuery.exec()) {
+                qWarning("Filka: could not restore bookmark: %s",
+                         qPrintable(insertQuery.lastError().text()));
+            }
+        }
+    }
 }
 
 void BookmarkModel::clear()
