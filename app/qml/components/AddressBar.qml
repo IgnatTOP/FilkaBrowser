@@ -13,7 +13,6 @@ FocusScope {
     property bool secure: false
     property bool loading: false
     property real progress: 0          // 0..1
-    property bool privateMode: false
     signal navigate(string text)       // emitted with raw user text
     signal securityClicked()
 
@@ -49,9 +48,6 @@ FocusScope {
     // ---- Suggestions ----
     property var suggestions: []       // [{ kind, title, url, label }]
     property int highlight: -1
-    // Visual highlight is initialized for discoverability, but Enter keeps the
-    // raw typed-text behavior until the user explicitly navigates suggestions.
-    property bool highlightTouched: false
     readonly property bool suggesting: field.activeFocus && suggestions.length > 0
 
     // Live web suggestions (from the search engine's autocomplete service),
@@ -61,7 +57,7 @@ FocusScope {
 
     function rebuildSuggestions() {
         var t = field.text.trim()
-        if (t.length === 0) { suggestions = []; highlight = -1; highlightTouched = false; return }
+        if (t.length === 0) { suggestions = []; highlight = -1; return }
 
         var out = []
         // Leading action: navigate straight to a URL, or search the web.
@@ -90,8 +86,8 @@ FocusScope {
 
         // Web autocomplete phrases — only when they still match the typed text
         // and the input isn't itself a URL. Each becomes a search action.
-        if (!root.privateMode && AppSettings.networkSuggestionsEnabled && !root.looksLikeUrl(t)
-                && root.netQuery === t.toLowerCase()) {
+        if (AppSettings.networkSuggestionsEnabled && AppSettings.networkSuggestionsSupported
+                && !root.looksLikeUrl(t) && root.netQuery === t.toLowerCase()) {
             var seenPhrase = {}
             seenPhrase[t.toLowerCase()] = true
             for (var k = 0; k < root.netPhrases.length && out.length < 9; ++k) {
@@ -105,8 +101,7 @@ FocusScope {
         }
 
         suggestions = out
-        highlight = out.length > 0 ? 0 : -1
-        highlightTouched = false
+        highlight = -1
     }
 
     // Debounce typing before hitting the network so we don't fire a request per
@@ -118,20 +113,21 @@ FocusScope {
     }
 
     function fetchSuggestions(t) {
-        if (root.privateMode || !AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
+        if (!AppSettings.networkSuggestionsEnabled || !AppSettings.networkSuggestionsSupported
+                || t.length < 2 || root.looksLikeUrl(t))
             return
+        var url = AppSettings.suggestUrl(t)
+        if (url.length === 0)
+            return
+
         var req = new XMLHttpRequest()
-        // Google's "firefox" client returns clean JSON: ["query", ["s1","s2",...]].
-        var url = "https://www.google.com/complete/search?client=firefox&q="
-                + encodeURIComponent(t)
         req.onreadystatechange = function() {
             if (req.readyState !== XMLHttpRequest.DONE || req.status !== 200)
                 return
             try {
-                var data = JSON.parse(req.responseText)
-                if (Array.isArray(data) && Array.isArray(data[1])
-                    && ("" + data[0]).toLowerCase() === t.toLowerCase()) {
-                    root.netPhrases = data[1]
+                var phrases = root.parseSuggestionResponse(req.responseText, t)
+                if (phrases.length > 0) {
+                    root.netPhrases = phrases
                     root.netQuery = t.toLowerCase()
                     // Only refresh the panel if the user is still on this text.
                     if (field.text.trim() === t)
@@ -143,37 +139,44 @@ FocusScope {
         req.send()
     }
 
+    function parseSuggestionResponse(text, t) {
+        var data = JSON.parse(text)
+        var parser = AppSettings.suggestParser()
+        if (parser === "firefox-array") {
+            if (Array.isArray(data) && Array.isArray(data[1])
+                    && ("" + data[0]).toLowerCase() === t.toLowerCase())
+                return data[1]
+        } else if (parser === "duckduckgo") {
+            if (!Array.isArray(data))
+                return []
+            var phrases = []
+            for (var i = 0; i < data.length; ++i) {
+                if (data[i] && data[i].phrase)
+                    phrases.push(data[i].phrase)
+            }
+            return phrases
+        }
+        return []
+    }
+
     function moveHighlight(delta) {
+        if (suggestions.length === 0) return
         var n = suggestions.length
-        if (n === 0) return
-
-        var current = highlight
-        if (current < 0 || current >= n)
-            current = 0
-
-        highlight = (current + delta + n) % n
-        highlightTouched = true
+        // -1 acts as "no selection" between the two ends.
+        highlight = highlight + delta
+        if (highlight < -1) highlight = n - 1
+        else if (highlight >= n) highlight = -1
     }
 
-    function clearSuggestions() {
-        suggestions = []
-        highlight = -1
-        highlightTouched = false
-    }
-
-    function clearSelection() {
-        highlight = -1
-        highlightTouched = false
-    }
-
-    function acceptSuggestion(i, forceSuggestion) {
-        if ((forceSuggestion || highlightTouched) && i >= 0 && i < suggestions.length) {
+    function acceptSuggestion(i) {
+        if (i >= 0 && i < suggestions.length) {
             root.navigate(suggestions[i].url)
         } else {
             var url = root.resolve(field.text)
             if (url.length) root.navigate(url)
         }
-        clearSuggestions()
+        suggestions = []
+        highlight = -1
         field.focus = false
     }
 
@@ -218,20 +221,20 @@ FocusScope {
 
             onActiveFocusChanged: {
                 if (activeFocus) selectAll()
-                else root.clearSuggestions()
+                else { root.suggestions = []; root.highlight = -1 }
             }
             // textEdited fires only on user input, not on the displayUrl binding,
             // so suggestions never pop up while pages navigate on their own.
             onTextEdited: {
                 root.rebuildSuggestions()
-                if (!root.privateMode && AppSettings.networkSuggestionsEnabled)
+                if (AppSettings.networkSuggestionsEnabled && AppSettings.networkSuggestionsSupported)
                     netDebounce.restart()
                 else
                     netDebounce.stop()
             }
-            onAccepted: root.acceptSuggestion(root.highlight, false)
+            onAccepted: root.acceptSuggestion(root.highlight)
             Keys.onEscapePressed: {
-                if (root.suggestions.length > 0) root.clearSuggestions()
+                if (root.suggestions.length > 0) { root.suggestions = []; root.highlight = -1 }
                 else { text = root.displayUrl; focus = false }
             }
             Keys.onDownPressed: root.moveHighlight(1)
@@ -275,10 +278,6 @@ FocusScope {
 
         contentItem: Column {
             spacing: 2
-            HoverHandler {
-                id: panelHover
-                onHoveredChanged: if (!hovered) root.clearSelection()
-            }
             Repeater {
                 model: root.suggestions
                 delegate: Rectangle {
@@ -322,7 +321,7 @@ FocusScope {
                         }
                     }
                     HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: root.acceptSuggestion(srow.index, true) }
+                    TapHandler { onTapped: root.acceptSuggestion(srow.index) }
                 }
             }
         }

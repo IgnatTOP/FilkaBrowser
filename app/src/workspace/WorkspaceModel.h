@@ -62,9 +62,12 @@ public:
     Q_INVOKABLE void activateTab(int workspaceIndex, int tabIndex);
     Q_INVOKABLE void closeTab(int workspaceIndex, int tabIndex);
     Q_INVOKABLE void setTabMuted(int workspaceIndex, int tabIndex, bool muted);
+    Q_INVOKABLE int moveTabToWorkspace(int fromWorkspace, int tabIndex, int toWorkspace,
+                                       bool activateMoved = false);
     Q_INVOKABLE int addWorkspace(const QString &name, const QString &glyph = QStringLiteral("globe"),
                                  const QColor &accent = QColor("#8B5CF6"));
     Q_INVOKABLE void renameWorkspace(int index, const QString &name);
+    Q_INVOKABLE void updateWorkspace(int index, const QString &name, const QString &glyph, const QColor &accent);
     Q_INVOKABLE void setWorkspaceGlyph(int index, const QString &glyph);
     Q_INVOKABLE void setWorkspaceAccent(int index, const QColor &accent);
     Q_INVOKABLE QVariantMap workspaceUndoSnapshot(int index) const;

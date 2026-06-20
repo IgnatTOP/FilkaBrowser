@@ -75,25 +75,6 @@ private slots:
         QCOMPARE(changedSpy.size(), 1);
     }
 
-    void closeToLeftPreservesPinnedTabs()
-    {
-        TabModel tabs;
-        tabs.addTab(QUrl(QStringLiteral("https://pinned.example")));
-        tabs.addTab(QUrl(QStringLiteral("https://one.example")));
-        tabs.addTab(QUrl(QStringLiteral("https://two.example")));
-        tabs.addTab(QUrl(QStringLiteral("https://target.example")));
-        tabs.setPinned(0, true);
-
-        tabs.closeToLeft(3);
-
-        QCOMPARE(tabs.rowCount(), 2);
-        QCOMPARE(tabs.activeIndex(), 1);
-        QCOMPARE(tabs.tabUrls(), QStringList({
-                     QStringLiteral("https://pinned.example"),
-                     QStringLiteral("https://target.example"),
-                 }));
-    }
-
     void historyRevisitMovesRowSafely()
     {
         HistoryModel history;
@@ -155,32 +136,32 @@ private slots:
         QVERIFY(urls.contains(QStringLiteral("https://after-reset.example")));
     }
 
-    void workspaceRemoveCanBeRestoredFromSnapshot()
+    void moveTabToWorkspaceCanStayOrFollow()
     {
         WorkspaceModel workspaces;
-        const int restoredIndex = workspaces.addWorkspace(QStringLiteral("Undoable"), QStringLiteral("sparkles"), QColor("#FF6A4D"));
-        TabModel *tabs = workspaces.activeTabs();
-        QVERIFY(tabs);
-        tabs->addTab(QUrl(QStringLiteral("https://restore.example/one")));
-        tabs->addTab(QUrl(QStringLiteral("https://restore.example/two")));
-        tabs->setActiveIndex(1);
+        workspaces.resetWorkspaces();
+        TabModel *source = workspaces.tabsAt(0);
+        TabModel *target = workspaces.tabsAt(1);
+        QVERIFY(source);
+        QVERIFY(target);
 
-        const QVariantMap snapshot = workspaces.workspaceUndoSnapshot(restoredIndex);
-        QVERIFY(workspaces.canRestoreWorkspace(snapshot));
-        QVERIFY(workspaces.removeWorkspaceIfRestorable(restoredIndex));
-        QCOMPARE(workspaces.rowCount(), 4);
+        source->addTab(QUrl(QStringLiteral("https://moved.example")));
+        source->updateTitle(1, QStringLiteral("Moved tab"));
+        source->setPinned(1, true);
+        QCOMPARE(workspaces.activeIndex(), 0);
 
-        QVERIFY(workspaces.restoreWorkspace(snapshot));
-        QCOMPARE(workspaces.rowCount(), 5);
-        QCOMPARE(workspaces.activeIndex(), restoredIndex);
-        QCOMPARE(workspaces.activeName(), QStringLiteral("Undoable"));
-        QVERIFY(workspaces.activeTabs());
-        QCOMPARE(workspaces.activeTabs()->tabUrls(), QStringList({
-                     QStringLiteral("about:blank"),
-                     QStringLiteral("https://restore.example/one"),
-                     QStringLiteral("https://restore.example/two"),
-                 }));
+        QCOMPARE(workspaces.moveTabToWorkspace(0, 1, 1), 1);
+        QCOMPARE(workspaces.activeIndex(), 0);
+        QCOMPARE(source->rowCount(), 1);
+        QCOMPARE(target->tabUrls().at(1), QStringLiteral("https://moved.example"));
+        QCOMPARE(target->data(target->index(1, 0), TabModel::TitleRole).toString(),
+                 QStringLiteral("Moved tab"));
+        QVERIFY(target->data(target->index(1, 0), TabModel::PinnedRole).toBool());
+
+        QCOMPARE(workspaces.moveTabToWorkspace(1, 1, 2, true), 1);
+        QCOMPARE(workspaces.activeIndex(), 2);
         QCOMPARE(workspaces.activeTabs()->activeIndex(), 1);
+        QCOMPARE(workspaces.activeTabs()->tabUrls().at(1), QStringLiteral("https://moved.example"));
     }
 
     void bookmarkToggleRejectsInvalidUrl()

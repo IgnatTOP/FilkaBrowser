@@ -7,7 +7,7 @@
 #pragma once
 
 #include <QObject>
-#include <QString>
+#include <QUrl>
 #include <qqmlregistration.h>
 
 class BrowsingData : public QObject
@@ -21,21 +21,8 @@ public:
 
     Q_INVOKABLE void clearCache(QObject *profile);
     Q_INVOKABLE void clearCookies(QObject *profile);
+    Q_INVOKABLE void clearCookiesForOrigin(QObject *profile, const QUrl &url);
     Q_INVOKABLE void clearPermissions(QObject *profile);
-    Q_INVOKABLE QString clearAll(QObject *profile);
-
-    Q_PROPERTY(QString lastClearStatus READ lastClearStatus NOTIFY lastClearStatusChanged)
-    Q_PROPERTY(bool restartRequired READ restartRequired NOTIFY lastClearStatusChanged)
-
-    QString lastClearStatus() const;
-    bool restartRequired() const;
-
-signals:
-    void lastClearStatusChanged();
-
-private:
-    void setLastClearStatus(const QString &status, bool restartRequired);
-
-    QString m_lastClearStatus;
-    bool m_restartRequired = false;
+    Q_INVOKABLE void clearPermissionsForOrigin(QObject *profile, const QUrl &url);
+    Q_INVOKABLE void clearAll(QObject *profile);
 };

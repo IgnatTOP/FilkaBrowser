@@ -12,6 +12,7 @@ import Filka
 Item {
     id: root
     property var tabs                 // TabModel
+    property var workspaceModel: null  // WorkspaceModel
     property bool vertical: true
     signal screenshotRequested(int tabIndex)
 
@@ -193,6 +194,7 @@ Item {
             onMuteToggled: root.tabs.setMuted(index, !model.muted)
             onContextRequested: {
                 tabMenu.tabsModel = root.tabs
+                tabMenu.workspaceModel = root.workspaceModel
                 tabMenu.tabIndex = index
                 tabMenu.tabPinned = model.pinned
                 tabMenu.tabMuted = model.muted

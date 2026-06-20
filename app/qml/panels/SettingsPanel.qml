@@ -12,8 +12,6 @@ Item {
     property string query: ""
     property string adBlockListDraft: ""
     property string adBlockSiteDraft: ""
-    property string browsingDataStatus: BrowsingData.lastClearStatus
-    property bool browsingDataRestartRequired: BrowsingData.restartRequired
     signal requestClose()
 
     anchors.fill: parent
@@ -317,14 +315,6 @@ Item {
 
     ImportDialog {
         id: importDialog
-    }
-
-    Connections {
-        target: BrowsingData
-        function onLastClearStatusChanged() {
-            settingsRoot.browsingDataStatus = BrowsingData.lastClearStatus
-            settingsRoot.browsingDataRestartRequired = BrowsingData.restartRequired
-        }
     }
 
     Rectangle {
@@ -674,7 +664,9 @@ Item {
                             SettingRow {
                                 Layout.fillWidth: true
                                 label: qsTr("Сетевые подсказки")
-                                hint: qsTr("Отправляет введённый текст сервису автодополнения.")
+                                hint: AppSettings.networkSuggestionsSupported
+                                      ? qsTr("Набираемый текст отправляется провайдеру: %1.").arg(AppSettings.suggestionProviderName)
+                                      : qsTr("Для %1 сетевые подсказки не поддержаны — будут показаны только история и закладки.").arg(AppSettings.searchEngine)
                                 iconName: "sparkles"
                                 ToggleSwitch { accessibleName: qsTr("Сетевые подсказки"); checked: AppSettings.networkSuggestionsEnabled; onToggled: AppSettings.networkSuggestionsEnabled = !AppSettings.networkSuggestionsEnabled }
                             }
@@ -724,6 +716,7 @@ Item {
                             }
                             SettingRow {
                                 Layout.fillWidth: true
+                                showDivider: false
                                 label: qsTr("Масштаб новых вкладок")
                                 hint: qsTr("%1%").arg(Math.round(AppSettings.defaultZoom * 100))
                                 iconName: "gauge"
@@ -732,16 +725,6 @@ Item {
                                     IconButton { iconName: "minus"; size: 30; iconSize: 13; tooltip: qsTr("Уменьшить"); onClicked: AppSettings.defaultZoom = AppSettings.defaultZoom - 0.1 }
                                     IconButton { iconName: "plus"; size: 30; iconSize: 13; tooltip: qsTr("Увеличить"); onClicked: AppSettings.defaultZoom = AppSettings.defaultZoom + 0.1 }
                                 }
-                            }
-                            SettingRow {
-                                Layout.fillWidth: true
-                                showDivider: false
-                                label: qsTr("Автовоспроизведение медиа")
-                                hint: AppSettings.permissiveAutoplayEnabled
-                                      ? qsTr("Разрешено везде. Изменение Chromium-флага полностью применится после перезапуска.")
-                                      : qsTr("По умолчанию нужен жест пользователя; доверенные музыкальные домены разрешены отдельно.")
-                                iconName: "music"
-                                ToggleSwitch { accessibleName: qsTr("Разрешить автовоспроизведение везде"); checked: AppSettings.permissiveAutoplayEnabled; onToggled: AppSettings.permissiveAutoplayEnabled = !AppSettings.permissiveAutoplayEnabled }
                             }
                         }
                     }
@@ -1100,42 +1083,20 @@ Item {
                         DangerRow {
                             Layout.fillWidth: true
                             label: qsTr("Очистить кэш")
-                            hint: settingsRoot.browsingDataStatus.length > 0 && !settingsRoot.browsingDataRestartRequired
-                                  ? qsTr("очищено сейчас") : ""
-                            act: (function() {
-                                BrowsingData.clearCache(settingsRoot.profile)
-                                settingsRoot.browsingDataStatus = qsTr("Кэш очищается сейчас.")
-                                settingsRoot.browsingDataRestartRequired = false
-                            })
+                            hint: qsTr("Глобальное действие")
+                            act: (function() { BrowsingData.clearCache(settingsRoot.profile) })
                         }
                         DangerRow {
                             Layout.fillWidth: true
-                            label: qsTr("Очистить cookie и данные сайтов")
-                            hint: settingsRoot.browsingDataRestartRequired
-                                  ? qsTr("будет завершено после перезапуска")
-                                  : qsTr("выход со всех сайтов")
-                            act: (function() {
-                                settingsRoot.browsingDataStatus = BrowsingData.clearAll(settingsRoot.profile)
-                                settingsRoot.browsingDataRestartRequired = BrowsingData.restartRequired
-                            })
-                        }
-                        SettingRow {
-                            Layout.fillWidth: true
-                            visible: settingsRoot.browsingDataStatus.length > 0
-                            label: settingsRoot.browsingDataRestartRequired
-                                   ? qsTr("Очистка будет завершена после перезапуска")
-                                   : qsTr("Очищено сейчас")
-                            hint: settingsRoot.browsingDataStatus
-                            iconName: settingsRoot.browsingDataRestartRequired ? "refresh-cw" : "shield-check"
+                            label: qsTr("Очистить cookies всех сайтов")
+                            hint: qsTr("Глобальное действие: выход со всех сайтов")
+                            act: (function() { BrowsingData.clearAll(settingsRoot.profile) })
                         }
                         DangerRow {
                             Layout.fillWidth: true
                             label: qsTr("Сбросить разрешения сайтов")
-                            act: (function() {
-                                BrowsingData.clearPermissions(settingsRoot.profile)
-                                settingsRoot.browsingDataStatus = qsTr("Разрешения сайтов очищены сейчас.")
-                                settingsRoot.browsingDataRestartRequired = false
-                            })
+                            hint: qsTr("Глобальное действие для всех сайтов")
+                            act: (function() { BrowsingData.clearPermissions(settingsRoot.profile) })
                         }
                     }
                 }

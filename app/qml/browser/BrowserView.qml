@@ -25,9 +25,9 @@ Item {
     property alias fullScreen: shell.fullScreen
 
     // Raised on Ctrl+N — the host window opens another top-level Filka window.
-    signal newWindowRequested()
+    signal newWindowRequested(url initialUrl)
     signal newPrivateWindowRequested()
-    function newWindow() { newWindowRequested() }
+    function newWindow() { newWindowRequested("") }
     function newPrivateWindow() { newPrivateWindowRequested() }
 
     WorkspaceModel { id: workspaces }
@@ -380,6 +380,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         tabs: workspaces.activeTabs
+                        workspaceModel: workspaces
                         vertical: false
                         onScreenshotRequested: (tabIndex) => root.screenshotTab(tabIndex)
                     }
@@ -422,6 +423,7 @@ Item {
                     onFullScreenRequested: (on, view) => root.setFullScreen(on, view)
                     onPermissionRequested: (permission) => shell.pendingPermission = permission
                     onPdfPrintingFinished: (path, success) => root.finishPrintToPdf(path, success)
+                    onOpenLinkInNewWindowRequested: (linkUrl) => root.newWindowRequested(linkUrl)
                     opacity: index === workspaces.activeIndex ? 1 : 0
                     visible: opacity > 0.01
                     Behavior on opacity { NumberAnimation { duration: Motion.base; easing.type: Motion.standard } }

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import Filka
 
 // BookmarksBar — a thin strip of saved-page chips under the toolbar. Lives in
@@ -6,6 +7,11 @@ import Filka
 // it. Collapses to 0 height when there are no bookmarks.
 Item {
     id: root
+
+    UndoToast {
+        id: undoToast
+        parent: Overlay.overlay
+    }
     signal navigate(string url)
 
     implicitHeight: (BookmarkModel.count > 0) ? 36 : 0
@@ -92,8 +98,14 @@ Item {
                         iconColor: Theme.textMuted
                         hoverColor: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.18)
                         visible: chipHover.hovered || chip.activeFocus || activeFocus
-                        Accessible.name: qsTr("Удалить закладку")
-                        onClicked: BookmarkModel.removeAt(chip.index)
+                        Accessible.name: qsTr("Удалить закладку %1").arg(chip.title)
+                        onClicked: {
+                            var removed = { title: chip.title, url: chip.url }
+                            BookmarkModel.removeAt(chip.index)
+                            undoToast.show(qsTr("Закладка удалена"), function() {
+                                BookmarkModel.add(removed.url, removed.title)
+                            })
+                        }
                     }
 
                     HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }

@@ -10,6 +10,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonParseError>
+#include <QtConcurrent>
 // SQLite-backed browser stores require Qt SQL. Keep Qt6::Sql linked when this
 // importer is added to a target; Chromium bookmarks are the only JSON-only path.
 #include <QSqlDatabase>
@@ -17,6 +18,7 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QUrl>
+#include <QDateTime>
 #include <QVariantMap>
 
 namespace {
@@ -72,6 +74,16 @@ QString copiedDatabasePath(const QString &sourcePath, QTemporaryDir *tempDir)
     return target;
 }
 
+QDateTime chromiumTimeToDateTime(qint64 value)
+{
+    return QDateTime::fromMSecsSinceEpoch((value / 1000) - 11644473600000LL, Qt::UTC);
+}
+
+QDateTime firefoxTimeToDateTime(qint64 value)
+{
+    return QDateTime::fromMSecsSinceEpoch(value / 1000, Qt::UTC);
+}
+
 QSqlDatabase openSqlite(const QString &path, const QString &prefix, QString *connectionName)
 {
     *connectionName = QStringLiteral("%1_%2").arg(prefix).arg(reinterpret_cast<quintptr>(connectionName), 0, 16);
@@ -94,7 +106,49 @@ void closeSqlite(QSqlDatabase *db, const QString &connectionName)
 }
 }
 
-BrowserImporter::BrowserImporter(QObject *parent) : QObject(parent) {}
+BrowserImporter::BrowserImporter(QObject *parent) : QObject(parent)
+{
+    connect(&m_detectionWatcher, &QFutureWatcher<QVariantList>::finished, this, [this]() {
+        const QVariantList detected = m_detectionWatcher.result();
+        if (m_cancelRequested) {
+            setStatus(QStringLiteral("Импорт отменён"));
+            setStage({});
+            setProgress(0.0);
+            setBusy(false);
+            return;
+        }
+
+        m_browsers = detected;
+        emit browsersChanged();
+        setStatus(detected.isEmpty()
+                  ? QStringLiteral("Браузеры для импорта не найдены")
+                  : QStringLiteral("Найдено браузеров: %1").arg(detected.size()));
+        setStage(QStringLiteral("detection"));
+        setProgress(1.0);
+        setBusy(false);
+    });
+
+    connect(&m_importWatcher, &QFutureWatcher<QVariantList>::finished, this, [this]() {
+        const QVariantList entries = m_importWatcher.result();
+        if (m_cancelRequested) {
+            setStatus(QStringLiteral("Импорт отменён"));
+            setStage({});
+            setProgress(0.0);
+            setBusy(false);
+            return;
+        }
+
+        setStage(QStringLiteral("parsing"));
+        setProgress(0.6);
+        setStage(QStringLiteral("importing"));
+        setProgress(0.75);
+        setStatus(QStringLiteral("Импортируем %1 записей в Filka...").arg(entries.size()));
+        if (m_pendingKind == QLatin1String("bookmarks"))
+            emit bookmarksReady(entries);
+        else if (m_pendingKind == QLatin1String("history"))
+            emit historyReady(entries);
+    });
+}
 
 void BrowserImporter::setBusy(bool busy)
 {
@@ -119,6 +173,14 @@ void BrowserImporter::setStatus(const QString &status)
         return;
     m_status = status;
     emit statusChanged();
+}
+
+void BrowserImporter::setStage(const QString &stage)
+{
+    if (m_stage == stage)
+        return;
+    m_stage = stage;
+    emit stageChanged();
 }
 
 void BrowserImporter::setImportedCounts(int bookmarks, int history, int passwords)
@@ -158,6 +220,96 @@ QVariantList BrowserImporter::detectInstalled()
     setProgress(1.0);
     setBusy(false);
     return m_browsers;
+}
+
+void BrowserImporter::startDetection()
+{
+    if (m_busy)
+        return;
+
+    m_cancelRequested = false;
+    setBusy(true);
+    setStage(QStringLiteral("detection"));
+    setProgress(0.05);
+    setStatus(QStringLiteral("Ищем установленные браузеры..."));
+    m_detectionWatcher.setFuture(QtConcurrent::run([this]() {
+        QVariantList detected = detectChromiumProfiles();
+        const QVariantList firefox = detectFirefoxProfiles();
+        for (const QVariant &entry : firefox)
+            detected.append(entry);
+        return detected;
+    }));
+}
+
+void BrowserImporter::startImportBookmarks(const QString &browserId)
+{
+    if (m_busy)
+        return;
+    if (m_browsers.isEmpty())
+        detectInstalled();
+
+    const QVariantMap b = browser(browserId);
+    if (b.isEmpty())
+        return;
+
+    m_cancelRequested = false;
+    m_pendingKind = QStringLiteral("bookmarks");
+    setBusy(true);
+    setStage(QStringLiteral("reading"));
+    setProgress(0.25);
+    setStatus(QStringLiteral("Читаем закладки из %1...").arg(b.value(QStringLiteral("name")).toString()));
+    m_importWatcher.setFuture(QtConcurrent::run([this, b]() {
+        const QString family = b.value(QStringLiteral("family")).toString();
+        return family == QLatin1String("firefox") ? readFirefoxBookmarks(b) : readChromiumBookmarks(b);
+    }));
+}
+
+void BrowserImporter::startImportHistory(const QString &browserId)
+{
+    if (m_busy)
+        return;
+    if (m_browsers.isEmpty())
+        detectInstalled();
+
+    const QVariantMap b = browser(browserId);
+    if (b.isEmpty())
+        return;
+
+    m_cancelRequested = false;
+    m_pendingKind = QStringLiteral("history");
+    setBusy(true);
+    setStage(QStringLiteral("reading"));
+    setProgress(0.25);
+    setStatus(QStringLiteral("Читаем историю из %1...").arg(b.value(QStringLiteral("name")).toString()));
+    m_importWatcher.setFuture(QtConcurrent::run([this, b]() {
+        const QString family = b.value(QStringLiteral("family")).toString();
+        return family == QLatin1String("firefox") ? readFirefoxHistory(b) : readChromiumHistory(b);
+    }));
+}
+
+void BrowserImporter::cancel()
+{
+    if (!m_busy)
+        return;
+    m_cancelRequested = true;
+    setStatus(QStringLiteral("Отменяем импорт..."));
+}
+
+void BrowserImporter::finishImportResult(const QVariantMap &result, const QString &kind)
+{
+    const int added = result.value(QStringLiteral("added")).toInt();
+    const int skipped = result.value(QStringLiteral("skippedDuplicates")).toInt();
+    const int errors = result.value(QStringLiteral("errors")).toInt();
+    if (kind == QLatin1String("bookmarks"))
+        setImportedCounts(added, m_importedHistory, m_importedPasswords);
+    else if (kind == QLatin1String("history"))
+        setImportedCounts(m_importedBookmarks, added, m_importedPasswords);
+
+    setStatus(QStringLiteral("Готово: добавлено %1, дублей пропущено %2, ошибок %3")
+                  .arg(added).arg(skipped).arg(errors));
+    setStage(QStringLiteral("done"));
+    setProgress(1.0);
+    setBusy(false);
 }
 
 QVariantMap BrowserImporter::browser(const QString &browserId) const
@@ -348,7 +500,7 @@ QVariantList BrowserImporter::readChromiumHistory(const QVariantMap &browser) co
 
     {
         QSqlQuery q(db);
-        if (q.exec(QStringLiteral("SELECT url, title FROM urls WHERE url LIKE 'http%' ORDER BY last_visit_time DESC LIMIT 5000"))) {
+        if (q.exec(QStringLiteral("SELECT url, title, last_visit_time FROM urls WHERE url LIKE 'http%' ORDER BY last_visit_time DESC LIMIT 5000"))) {
             while (q.next()) {
                 const QString url = q.value(0).toString();
                 if (!isWebUrl(url))
@@ -356,6 +508,7 @@ QVariantList BrowserImporter::readChromiumHistory(const QVariantMap &browser) co
                 out.append(QVariantMap{
                     {QStringLiteral("url"), url},
                     {QStringLiteral("title"), q.value(1).toString()},
+                    {QStringLiteral("lastVisit"), chromiumTimeToDateTime(q.value(2).toLongLong())},
                 });
             }
         }
@@ -419,7 +572,7 @@ QVariantList BrowserImporter::readFirefoxHistory(const QVariantMap &browser) con
     {
         QSqlQuery q(db);
         if (q.exec(QStringLiteral(
-                "SELECT url, title FROM moz_places "
+                "SELECT url, title, last_visit_date FROM moz_places "
                 "WHERE url LIKE 'http%' AND last_visit_date IS NOT NULL "
                 "ORDER BY last_visit_date DESC LIMIT 5000"))) {
             while (q.next()) {
@@ -429,6 +582,7 @@ QVariantList BrowserImporter::readFirefoxHistory(const QVariantMap &browser) con
                 out.append(QVariantMap{
                     {QStringLiteral("url"), url},
                     {QStringLiteral("title"), q.value(1).toString()},
+                    {QStringLiteral("lastVisit"), firefoxTimeToDateTime(q.value(2).toLongLong())},
                 });
             }
         }

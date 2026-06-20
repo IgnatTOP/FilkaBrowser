@@ -1,72 +1,46 @@
 #include "BrowsingData.h"
 
 #include <QDir>
-#include <QSettings>
-#include <QStringList>
+#include <QNetworkCookie>
+#include <QTimer>
+#include <QUrl>
 
 #include <QtWebEngineCore/QWebEngineCookieStore>
 #include <QtWebEngineCore/QWebEnginePermission>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
 namespace {
-constexpr auto kPendingCleanupKey = "privacy/pendingWebEngineProfileCleanup";
-constexpr auto kPendingCleanupPathsKey = "privacy/pendingWebEngineProfileCleanupPaths";
-
 QQuickWebEngineProfile *asProfile(QObject *profile)
 {
     return qobject_cast<QQuickWebEngineProfile *>(profile);
 }
 
-QStringList safeProfileDirectories(const QQuickWebEngineProfile &profile)
+QString normalizedHost(const QUrl &url)
 {
-    QStringList paths;
-    const QString storagePath = profile.persistentStoragePath();
-    if (!storagePath.isEmpty())
-        paths << QDir::cleanPath(storagePath);
-    const QString cachePath = profile.cachePath();
-    if (!cachePath.isEmpty())
-        paths << QDir::cleanPath(cachePath);
-    paths.removeDuplicates();
-    return paths;
+    return url.host().toLower();
 }
 
-void scheduleProfileDirectoryCleanup(const QStringList &paths)
+bool domainMatchesHost(QString cookieDomain, const QString &host)
 {
-    if (paths.isEmpty())
-        return;
+    if (host.isEmpty())
+        return false;
 
-    QSettings store;
-    QStringList pending = store.value(QString::fromLatin1(kPendingCleanupPathsKey)).toStringList();
-    for (const QString &path : paths) {
-        if (!pending.contains(path))
-            pending << path;
-    }
-    store.setValue(QString::fromLatin1(kPendingCleanupKey), true);
-    store.setValue(QString::fromLatin1(kPendingCleanupPathsKey), pending);
-    store.sync();
+    cookieDomain = cookieDomain.toLower();
+    if (cookieDomain.startsWith(QLatin1Char('.')))
+        cookieDomain.remove(0, 1);
+
+    return cookieDomain == host || host.endsWith(QStringLiteral(".") + cookieDomain);
+}
+
+bool sameOrigin(const QUrl &left, const QUrl &right)
+{
+    return left.scheme().compare(right.scheme(), Qt::CaseInsensitive) == 0
+        && left.host().compare(right.host(), Qt::CaseInsensitive) == 0
+        && left.port() == right.port();
 }
 }
 
 BrowsingData::BrowsingData(QObject *parent) : QObject(parent) {}
-
-QString BrowsingData::lastClearStatus() const
-{
-    return m_lastClearStatus;
-}
-
-bool BrowsingData::restartRequired() const
-{
-    return m_restartRequired;
-}
-
-void BrowsingData::setLastClearStatus(const QString &status, bool restartRequired)
-{
-    if (m_lastClearStatus == status && m_restartRequired == restartRequired)
-        return;
-    m_lastClearStatus = status;
-    m_restartRequired = restartRequired;
-    emit lastClearStatusChanged();
-}
 
 void BrowsingData::clearCache(QObject *profile)
 {
@@ -83,6 +57,44 @@ void BrowsingData::clearCookies(QObject *profile)
         cookies->deleteAllCookies();
 }
 
+void BrowsingData::clearCookiesForOrigin(QObject *profile, const QUrl &url)
+{
+    auto *p = asProfile(profile);
+    if (!p)
+        return;
+
+    auto *cookies = p->cookieStore();
+    if (!cookies)
+        return;
+
+    const QString host = normalizedHost(url);
+    if (host.isEmpty())
+        return;
+
+    auto *disconnectTimer = new QTimer(cookies);
+    disconnectTimer->setSingleShot(true);
+    disconnectTimer->setInterval(250);
+
+    const QMetaObject::Connection *connection = new QMetaObject::Connection;
+    *connection = connect(cookies, &QWebEngineCookieStore::cookieAdded, cookies,
+                          [cookies, host, connection, disconnectTimer](const QNetworkCookie &cookie) {
+                              if (domainMatchesHost(cookie.domain(), host))
+                                  cookies->deleteCookie(cookie);
+
+                              // Keep the temporary filter alive until the asynchronous
+                              // loadAllCookies() burst has gone quiet.
+                              disconnectTimer->start();
+                          });
+    connect(disconnectTimer, &QTimer::timeout, cookies, [connection, disconnectTimer]() {
+        QObject::disconnect(*connection);
+        delete connection;
+        disconnectTimer->deleteLater();
+    });
+
+    cookies->loadAllCookies();
+    disconnectTimer->start();
+}
+
 void BrowsingData::clearPermissions(QObject *profile)
 {
     auto *p = asProfile(profile);
@@ -95,33 +107,39 @@ void BrowsingData::clearPermissions(QObject *profile)
     }
 }
 
-QString BrowsingData::clearAll(QObject *profile)
+void BrowsingData::clearPermissionsForOrigin(QObject *profile, const QUrl &url)
+{
+    auto *p = asProfile(profile);
+    if (!p || !url.isValid())
+        return;
+
+    const auto permissions = p->listAllPermissions();
+    for (const QWebEnginePermission &permission : permissions) {
+        if (permission.isValid() && sameOrigin(permission.origin(), url))
+            permission.reset();
+    }
+}
+
+void BrowsingData::clearAll(QObject *profile)
 {
     auto *p = asProfile(profile);
     clearCache(profile);
     clearCookies(profile);
     clearPermissions(profile);
+    if (!p || p->isOffTheRecord())
+        return;
 
-    if (!p) {
-        const QString status = tr("Очистка запущена для доступных данных.");
-        setLastClearStatus(status, false);
-        return status;
+    const QString storagePath = p->persistentStoragePath();
+    if (!storagePath.isEmpty() && QDir(storagePath).exists()
+        && !QDir(storagePath).removeRecursively()) {
+        qWarning("Filka: could not remove WebEngine storage path: %s",
+                 qPrintable(storagePath));
     }
 
-    p->clearAllVisitedLinks();
-
-    if (p->isOffTheRecord()) {
-        const QString status = tr("Данные приватного профиля очищены сейчас.");
-        setLastClearStatus(status, false);
-        return status;
+    const QString cachePath = p->cachePath();
+    if (!cachePath.isEmpty() && QDir(cachePath).exists()
+        && !QDir(cachePath).removeRecursively()) {
+        qWarning("Filka: could not remove WebEngine cache path: %s",
+                 qPrintable(cachePath));
     }
-
-    const QStringList paths = safeProfileDirectories(*p);
-    scheduleProfileDirectoryCleanup(paths);
-
-    const QString status = paths.isEmpty()
-        ? tr("Cookie, кэш, разрешения и посещённые ссылки очищены сейчас.")
-        : tr("Cookie, кэш, разрешения и посещённые ссылки очищены сейчас. Очистка хранилища сайтов будет завершена после перезапуска.");
-    setLastClearStatus(status, !paths.isEmpty());
-    return status;
 }
