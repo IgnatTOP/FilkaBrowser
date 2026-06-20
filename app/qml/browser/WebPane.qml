@@ -14,6 +14,7 @@ Item {
     property bool recordHistory: true
     property real defaultZoom: 1.0
     property bool roundedWebClip: false
+    property var browser: null
 
     // When false (start page is showing) the active web view is hidden so the
     // QML start surface isn't punched through by Chromium's native compositing.
@@ -57,6 +58,7 @@ Item {
     signal fullScreenRequested(bool on, var view)
     // A page wants a permission (camera, mic, geolocation, notifications...).
     signal permissionRequested(var permission)
+    signal pdfPrintingFinished(string path, bool success)
 
     function syncActive() {
         activeView = (tabsModel && tabsModel.activeIndex >= 0)
@@ -229,10 +231,7 @@ Item {
                     root.permissionRequested(permission)
                 }
                 onPdfPrintingFinished: function(path, success) {
-                    if (success)
-                        Qt.openUrlExternally("file://" + path)
-                    else
-                        console.warn("Filka: PDF print failed for", path)
+                    root.pdfPrintingFinished(path, success)
                 }
             }
         }
@@ -314,6 +313,7 @@ Item {
     WebContextMenu {
         id: ctxMenu
         tabsModel: root.tabsModel
+        browser: root.browser
         onInspectRequested: root.devToolsRequested()
         onPictureInPictureRequested: root.pictureInPictureRequested()
     }

@@ -12,6 +12,7 @@ Menu {
     property var view: null
     property var request: null
     property var tabsModel: null
+    property var browser: null
     signal inspectRequested()
     signal pictureInPictureRequested()
 
@@ -134,10 +135,8 @@ Menu {
     MItem {
         text: "Печать / Сохранить как PDF"
         onTriggered: {
-            if (!menu.view) return
-            var name = (menu.view.title && menu.view.title.length ? menu.view.title : "Filka")
-                       .replace(/[\/\\:*?"<>|]+/g, "_").slice(0, 80)
-            menu.view.printToPdf(AppSettings.downloadDir() + "/" + name + ".pdf")
+            if (menu.browser)
+                menu.browser.printViewToPdf(menu.view)
         }
     }
     MItem {

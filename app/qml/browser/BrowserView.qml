@@ -108,13 +108,43 @@ Item {
         var t = workspaces.activeTabs
         if (t) t.duplicateTab(t.activeIndex)
     }
-    // Save the current page as a PDF into the downloads folder, then reveal it.
+    function sanitizedPdfName(title) {
+        var name = (title && title.length ? title : "Filka")
+                   .replace(/[\/\\:*?"<>|\x00-\x1F]+/g, "_")
+                   .replace(/^[\s.]+|[\s.]+$/g, "")
+                   .slice(0, 80)
+        return name.length ? name : "Filka"
+    }
+    function pdfPathForView(view) {
+        return AppSettings.downloadPath + "/"
+                + sanitizedPdfName(view && view.title ? view.title : "Filka") + ".pdf"
+    }
+    function openPdfFile(path) {
+        Qt.openUrlExternally("file://" + path)
+    }
+    function finishPrintToPdf(path, success) {
+        if (success) {
+            pdfToast.savedPath = path
+            pdfToast.message = qsTr("PDF сохранён")
+            pdfToast.open()
+            openPdfFile(path)
+        } else {
+            pdfToast.savedPath = ""
+            pdfToast.message = qsTr("Не удалось сохранить PDF")
+            pdfToast.open()
+            console.warn("Filka: PDF print failed for", path)
+        }
+    }
+    // Save a web view as a PDF into the downloads folder. Toolbar, shortcut and
+    // web context menu all route through this helper so path, filename cleanup,
+    // toast/status and opening behavior stay identical.
+    function printViewToPdf(view) {
+        if (!view) return
+        view.printToPdf(pdfPathForView(view))
+    }
     function printPage() {
         if (!activeView || atHome) return
-        var name = (activeView.title && activeView.title.length ? activeView.title : "Filka")
-                   .replace(/[\/\\:*?"<>|]+/g, "_").slice(0, 80)
-        var path = AppSettings.downloadPath + "/" + name + ".pdf"
-        activeView.printToPdf(path)
+        printViewToPdf(activeView)
     }
     function cycleTab(dir) {
         var t = workspaces.activeTabs
@@ -386,10 +416,12 @@ Item {
                     defaultZoom: AppSettings.defaultZoom
                     showWeb: !root.atHome
                     roundedWebClip: !shell.fullScreen   // rounded page card
+                    browser: root
                     onDevToolsRequested: shell.showDevTools = true
                     onPictureInPictureRequested: root.openPictureInPicture()
                     onFullScreenRequested: (on, view) => root.setFullScreen(on, view)
                     onPermissionRequested: (permission) => shell.pendingPermission = permission
+                    onPdfPrintingFinished: (path, success) => root.finishPrintToPdf(path, success)
                     opacity: index === workspaces.activeIndex ? 1 : 0
                     visible: opacity > 0.01
                     Behavior on opacity { NumberAnimation { duration: Motion.base; easing.type: Motion.standard } }
@@ -504,6 +536,56 @@ Item {
                 anchors.fill: parent
                 onAccepted: (selection, copyToClipboard) => root.captureArea(selection, copyToClipboard)
                 onCancelled: {}
+            }
+
+            Popup {
+                id: pdfToast
+                property string message: ""
+                property string savedPath: ""
+                parent: Overlay.overlay
+                modal: false
+                focus: false
+                closePolicy: Popup.NoAutoClose
+                x: Math.round((parent.width - width) / 2)
+                y: parent.height - height - Theme.s6
+                padding: 0
+                implicitWidth: pdfToastBody.implicitWidth
+                implicitHeight: pdfToastBody.implicitHeight
+                Timer {
+                    id: pdfToastTimer
+                    interval: 3000
+                    onTriggered: pdfToast.close()
+                }
+                onOpened: pdfToastTimer.restart()
+                background: Rectangle {
+                    radius: Theme.radiusPill
+                    color: Theme.bgRaised
+                    border.width: 1
+                    border.color: Theme.glassStroke
+                }
+                contentItem: RowLayout {
+                    id: pdfToastBody
+                    spacing: Theme.s2
+                    anchors.margins: Theme.s2
+                    Icon {
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
+                        name: pdfToast.savedPath.length > 0 ? "check" : "x"
+                        size: 15
+                        color: pdfToast.savedPath.length > 0 ? Theme.positive : Theme.danger
+                    }
+                    Text {
+                        text: pdfToast.message
+                        color: Theme.textPrimary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm
+                    }
+                    GlassButton {
+                        visible: pdfToast.savedPath.length > 0
+                        text: qsTr("Открыть")
+                        onClicked: root.openPdfFile(pdfToast.savedPath)
+                    }
+                }
             }
 
             Popup {
