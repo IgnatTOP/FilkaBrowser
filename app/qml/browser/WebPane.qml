@@ -123,6 +123,7 @@ Item {
                 settings.dnsPrefetchEnabled: true
                 settings.printElementBackgrounds: true
                 settings.scrollAnimatorEnabled: false
+                settings.playbackRequiresUserGesture: !(AppSettings.permissiveAutoplayEnabled || AppSettings.isTrustedAutoplayHost(webView.url))
                 visible: index === root.tabsModel.activeIndex && root.showWeb
                 z: visible ? 1 : 0
                 // Offscreen rendering is only needed when the shell explicitly wants

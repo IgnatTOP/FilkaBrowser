@@ -5,6 +5,8 @@
 #include <QStandardPaths>
 #include <QUrl>
 
+#include <array>
+
 namespace {
 // name -> query-string template (%1 is replaced by the encoded query).
 struct Engine {
@@ -16,6 +18,16 @@ const Engine kEngines[] = {
     {"Google",     "https://www.google.com/search?q=%1"},
     {"Bing",       "https://www.bing.com/search?q=%1"},
     {"Yandex",     "https://yandex.ru/search/?text=%1"},
+};
+
+constexpr std::array kTrustedAutoplayDomains = {
+    "music.youtube.com",
+    "open.spotify.com",
+    "soundcloud.com",
+    "music.apple.com",
+    "deezer.com",
+    "tidal.com",
+    "bandcamp.com",
 };
 
 QString writableOrFallback(QStandardPaths::StandardLocation location,
@@ -114,6 +126,7 @@ AppSettings::AppSettings(QObject *parent) : QObject(parent)
     m_defaultZoom = qBound(0.5, m_store.value(QStringLiteral("tabs/defaultZoom"), 1.0).toDouble(), 2.0);
     m_translatorCacheEnabled = m_store.value(QStringLiteral("translator/cacheEnabled"), true).toBool();
     m_translatorAutoOffer = m_store.value(QStringLiteral("translator/autoOffer"), true).toBool();
+    m_permissiveAutoplayEnabled = m_store.value(QStringLiteral("media/permissiveAutoplayEnabled"), false).toBool();
 }
 
 void AppSettings::setOnboarded(bool value)
@@ -318,6 +331,16 @@ void AppSettings::setTranslatorAutoOffer(bool value)
     emit translatorAutoOfferChanged();
 }
 
+void AppSettings::setPermissiveAutoplayEnabled(bool value)
+{
+    if (m_permissiveAutoplayEnabled == value)
+        return;
+    m_permissiveAutoplayEnabled = value;
+    m_store.setValue(QStringLiteral("media/permissiveAutoplayEnabled"), value);
+    m_store.sync();
+    emit permissiveAutoplayEnabledChanged();
+}
+
 QStringList AppSettings::searchEngines() const
 {
     QStringList names;
@@ -359,4 +382,18 @@ QString AppSettings::searchUrl(const QString &query) const
     }
     // Fall back to the first engine if the stored name is unknown.
     return QString::fromLatin1(kEngines[0].query).arg(encoded);
+}
+
+bool AppSettings::isTrustedAutoplayHost(const QUrl &url) const
+{
+    const QString host = url.host().toLower();
+    if (host.isEmpty())
+        return false;
+
+    for (const char *domain : kTrustedAutoplayDomains) {
+        const QString trusted = QString::fromLatin1(domain);
+        if (host == trusted || host.endsWith(QLatin1Char('.') + trusted))
+            return true;
+    }
+    return false;
 }
