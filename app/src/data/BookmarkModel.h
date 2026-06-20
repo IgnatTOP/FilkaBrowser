@@ -43,6 +43,7 @@ public:
     // Adds the URL if missing, removes it if present. Returns the new state.
     Q_INVOKABLE bool toggle(const QUrl &url, const QString &title);
     Q_INVOKABLE void add(const QUrl &url, const QString &title);
+    Q_INVOKABLE void insertAt(int index, const QUrl &url, const QString &title);
     Q_INVOKABLE void removeUrl(const QUrl &url);
     Q_INVOKABLE void removeAt(int index);
     Q_INVOKABLE void clear();
@@ -68,6 +69,8 @@ private:
 
     void openDatabase();
     void load();
+    void persistEntry(const Entry &entry);
+    void persistOrder();
     int indexOfUrl(const QString &url) const;
     static bool isWebUrl(const QUrl &url);
 };

@@ -1,5 +1,6 @@
 #include "BookmarkModel.h"
 
+#include <algorithm>
 #include <QDir>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -114,37 +115,61 @@ bool BookmarkModel::contains(const QUrl &url) const
     return indexOfUrl(url.toString()) >= 0;
 }
 
+void BookmarkModel::persistEntry(const Entry &entry)
+{
+    if (!m_db.isOpen())
+        return;
+
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "INSERT OR REPLACE INTO bookmarks (url, title, added) VALUES (?, ?, ?)"));
+    q.addBindValue(entry.url);
+    q.addBindValue(entry.title);
+    q.addBindValue(entry.added.toMSecsSinceEpoch());
+    if (!q.exec()) {
+        qWarning("Filka: could not persist bookmark: %s",
+                 qPrintable(q.lastError().text()));
+    }
+}
+
+void BookmarkModel::persistOrder()
+{
+    if (!m_db.isOpen())
+        return;
+
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (int i = 0; i < m_entries.size(); ++i) {
+        m_entries[i].added = now.addMSecs(-i);
+        persistEntry(m_entries.at(i));
+    }
+}
+
 void BookmarkModel::add(const QUrl &url, const QString &title)
+{
+    insertAt(0, url, title);
+}
+
+void BookmarkModel::insertAt(int index, const QUrl &url, const QString &title)
 {
     if (!isWebUrl(url))
         return;
+
     const QString key = url.toString();
     if (indexOfUrl(key) >= 0)
         return;
 
-    const QDateTime now = QDateTime::currentDateTimeUtc();
-    beginInsertRows({}, 0, 0);
+    index = std::clamp(index, 0, int(m_entries.size()));
     Entry e;
     e.url = key;
     e.title = title;
-    e.added = now;
-    m_entries.prepend(e);
+    e.added = QDateTime::currentDateTimeUtc();
+
+    beginInsertRows({}, index, index);
+    m_entries.insert(index, e);
     endInsertRows();
+    persistOrder();
     emit countChanged();
     emit changed();
-
-    if (m_db.isOpen()) {
-        QSqlQuery q(m_db);
-        q.prepare(QStringLiteral(
-            "INSERT OR REPLACE INTO bookmarks (url, title, added) VALUES (?, ?, ?)"));
-        q.addBindValue(key);
-        q.addBindValue(title);
-        q.addBindValue(now.toMSecsSinceEpoch());
-        if (!q.exec()) {
-            qWarning("Filka: could not persist bookmark: %s",
-                     qPrintable(q.lastError().text()));
-        }
-    }
 }
 
 void BookmarkModel::removeUrl(const QUrl &url)

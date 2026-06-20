@@ -147,6 +147,35 @@ private slots:
         QCOMPARE(bookmarks.rowCount(), 0);
     }
 
+
+    void bookmarkInsertAtRestoresDeletedPosition()
+    {
+        BookmarkModel bookmarks;
+        QAbstractItemModelTester tester(&bookmarks, QAbstractItemModelTester::FailureReportingMode::QtTest);
+        bookmarks.clear();
+
+        bookmarks.add(QUrl(QStringLiteral("https://three.example")), QStringLiteral("Three"));
+        bookmarks.add(QUrl(QStringLiteral("https://two.example")), QStringLiteral("Two"));
+        bookmarks.add(QUrl(QStringLiteral("https://one.example")), QStringLiteral("One"));
+        QCOMPARE(bookmarks.rowCount(), 3);
+
+        bookmarks.removeAt(1);
+        QCOMPARE(bookmarks.rowCount(), 2);
+        QCOMPARE(bookmarks.data(bookmarks.index(1, 0), BookmarkModel::UrlRole).toString(),
+                 QStringLiteral("https://three.example"));
+
+        bookmarks.insertAt(1, QUrl(QStringLiteral("https://two.example")), QStringLiteral("Two"));
+        QCOMPARE(bookmarks.rowCount(), 3);
+        QCOMPARE(bookmarks.data(bookmarks.index(0, 0), BookmarkModel::UrlRole).toString(),
+                 QStringLiteral("https://one.example"));
+        QCOMPARE(bookmarks.data(bookmarks.index(1, 0), BookmarkModel::UrlRole).toString(),
+                 QStringLiteral("https://two.example"));
+        QCOMPARE(bookmarks.data(bookmarks.index(2, 0), BookmarkModel::UrlRole).toString(),
+                 QStringLiteral("https://three.example"));
+
+        bookmarks.clear();
+    }
+
     void restoreClampsActiveIndex()
     {
         TabModel tabs;
