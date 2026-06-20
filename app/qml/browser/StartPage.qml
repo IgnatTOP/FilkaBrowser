@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Filka
+import "../components/OmniboxHelper.js" as Omnibox
 
 Item {
     id: root
@@ -23,11 +24,93 @@ Item {
     readonly property real contentWidth: Math.min(760, Math.max(360, width - Theme.s7 * 2))
     readonly property int visibleDownloadCount: privateMode ? DownloadModel.count : DownloadModel.publicCount
 
+    property var suggestions: []
+    property int highlight: -1
+    property var netPhrases: []
+    property string netQuery: ""
+    readonly property bool suggesting: search.activeFocus && suggestions.length > 0
+
     component GlassCard: Rectangle {
         radius: Theme.radiusLg
         color: Theme.glassMed
         border.width: 1
         border.color: Theme.glassStroke
+    }
+
+
+    function resolve(text) { return Omnibox.resolve(text, AppSettings) }
+    function looksLikeUrl(text) { return Omnibox.looksLikeUrl(text) }
+
+    function rebuildSuggestions() {
+        suggestions = Omnibox.buildSuggestions({
+            text: search.text,
+            appSettings: AppSettings,
+            quickLinkModel: QuickLinkModel,
+            bookmarkModel: BookmarkModel,
+            historyModel: HistoryModel,
+            includeQuickLinks: true,
+            networkEnabled: AppSettings.networkSuggestionsEnabled,
+            netPhrases: root.netPhrases,
+            netQuery: root.netQuery,
+            goLabel: qsTr("Перейти на сайт"),
+            searchLabel: qsTr("Искать в сети"),
+            suggestLabel: qsTr("Поиск"),
+            maxCount: 9,
+            quickLinkLimit: 4,
+            bookmarkLimit: 3,
+            historyLimit: 5
+        })
+        highlight = -1
+    }
+
+    function fetchSuggestions(t) {
+        if (!AppSettings.networkSuggestionsEnabled || t.length < 2 || root.looksLikeUrl(t))
+            return
+        var req = new XMLHttpRequest()
+        var url = "https://www.google.com/complete/search?client=firefox&q="
+                + encodeURIComponent(t)
+        req.onreadystatechange = function() {
+            if (req.readyState !== XMLHttpRequest.DONE || req.status !== 200)
+                return
+            try {
+                var data = JSON.parse(req.responseText)
+                if (Array.isArray(data) && Array.isArray(data[1])
+                    && ("" + data[0]).toLowerCase() === t.toLowerCase()) {
+                    root.netPhrases = data[1]
+                    root.netQuery = t.toLowerCase()
+                    if (search.text.trim() === t)
+                        root.rebuildSuggestions()
+                }
+            } catch (e) { /* ignore malformed responses */ }
+        }
+        req.open("GET", url)
+        req.send()
+    }
+
+    function moveHighlight(delta) {
+        if (suggestions.length === 0)
+            return
+        var n = suggestions.length
+        highlight = highlight + delta
+        if (highlight < -1)
+            highlight = n - 1
+        else if (highlight >= n)
+            highlight = -1
+    }
+
+    function acceptSuggestion(i) {
+        var url = ""
+        if (i >= 0 && i < suggestions.length)
+            url = suggestions[i].url
+        else
+            url = root.resolve(search.text)
+        if (url.length) {
+            root.navigate(url)
+            search.text = ""
+        }
+        suggestions = []
+        highlight = -1
+        search.focus = false
     }
 
     function hostOf(u) {
@@ -94,6 +177,12 @@ Item {
         else
             QuickLinkModel.add(title, url)
         editor.close()
+    }
+
+    Timer {
+        id: netDebounce
+        interval: 180
+        onTriggered: root.fetchSuggestions(search.text.trim())
     }
 
     Timer {
@@ -245,12 +334,21 @@ Item {
                     placeholderText: qsTr("Поиск в интернете или введите URL")
                     placeholderTextColor: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.48)
                     Accessible.name: qsTr("Поиск или адрес")
-                    onAccepted: {
-                        if (text.trim().length) {
-                            root.navigate(text)
-                            text = ""
-                        }
+                    onActiveFocusChanged: if (!activeFocus) { root.suggestions = []; root.highlight = -1 }
+                    onTextEdited: {
+                        root.rebuildSuggestions()
+                        if (AppSettings.networkSuggestionsEnabled)
+                            netDebounce.restart()
+                        else
+                            netDebounce.stop()
                     }
+                    onAccepted: root.acceptSuggestion(root.highlight)
+                    Keys.onEscapePressed: {
+                        if (root.suggestions.length > 0) { root.suggestions = []; root.highlight = -1 }
+                        else { text = ""; focus = false }
+                    }
+                    Keys.onDownPressed: root.moveHighlight(1)
+                    Keys.onUpPressed: root.moveHighlight(-1)
                 }
 
                 IconButton {
@@ -262,12 +360,15 @@ Item {
                     active: search.text.trim().length > 0
                     opacity: search.text.trim().length > 0 ? 1 : 0.55
                     Accessible.name: qsTr("Перейти")
-                    onClicked: {
-                        if (search.text.trim().length) {
-                            root.navigate(search.text)
-                            search.text = ""
-                        }
-                    }
+                    onClicked: root.acceptSuggestion(root.highlight)
+                }
+
+                OmniboxSuggestionsPopup {
+                    id: searchPopup
+                    anchorHeight: parent.height
+                    suggestions: root.suggesting ? root.suggestions : []
+                    highlight: root.highlight
+                    onAccepted: function(index) { root.acceptSuggestion(index) }
                 }
             }
 

@@ -127,6 +127,8 @@ qt_add_qml_module(filka
         qml/components/Icon.qml
         qml/components/Favicon.qml
         qml/components/AddressBar.qml
+        qml/components/OmniboxSuggestionsPopup.qml
+        qml/components/OmniboxHelper.js
         qml/components/UpdateBanner.qml
         qml/components/SidePanel.qml
         qml/components/Pill.qml
