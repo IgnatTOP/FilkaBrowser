@@ -118,9 +118,10 @@ SidePanel {
                     id: pauseBtn
                     anchors { right: revealBtn.visible ? revealBtn.left : actionBtn.left; rightMargin: Theme.s1; verticalCenter: parent.verticalCenter }
                     visible: row.activeDownload
-                    iconName: row.paused ? "rotate-cw" : "minus"
+                    iconName: row.paused ? "play" : "pause"
                     size: 30
-                    Accessible.name: row.paused ? qsTr("Продолжить") : qsTr("Пауза")
+                    tooltip: row.paused ? qsTr("Продолжить загрузку") : qsTr("Поставить на паузу")
+                    Accessible.name: tooltip
                     onClicked: row.paused ? DownloadModel.resume(row.downloadId)
                                           : DownloadModel.pause(row.downloadId)
                 }
