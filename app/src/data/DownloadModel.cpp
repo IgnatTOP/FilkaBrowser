@@ -26,6 +26,26 @@ int DownloadModel::publicCount() const
     return visible;
 }
 
+int DownloadModel::completedCount() const
+{
+    int completed = 0;
+    for (const Item &item : m_items) {
+        if (isCompleted(item))
+            ++completed;
+    }
+    return completed;
+}
+
+int DownloadModel::publicCompletedCount() const
+{
+    int completed = 0;
+    for (const Item &item : m_items) {
+        if (!item.privateDownload && isCompleted(item))
+            ++completed;
+    }
+    return completed;
+}
+
 QVariant DownloadModel::data(const QModelIndex &index, int role) const
 {
     if (index.row() < 0 || index.row() >= m_items.size())
@@ -173,9 +193,11 @@ int DownloadModel::acceptDownload(QObject *download, const QString &directory,
         endInsertRows();
         emit countChanged();
         emit publicCountChanged();
+        emit completedCountChanged();
     } else {
         m_items[row].privateDownload = privateDownload;
         emit publicCountChanged();
+        emit completedCountChanged();
     }
 
     if (!directory.trimmed().isEmpty()) {
@@ -229,6 +251,7 @@ void DownloadModel::refreshFromRequest(int row)
 
     auto *request = m_items[row].request.data();
     Item &item = m_items[row];
+    const bool wasCompleted = isCompleted(item);
     item.fileName = request->downloadFileName().isEmpty()
         ? request->suggestedFileName()
         : request->downloadFileName();
@@ -241,10 +264,13 @@ void DownloadModel::refreshFromRequest(int row)
     item.finished = request->isFinished();
     if (item.finished && !item.finishedAt.isValid())
         item.finishedAt = QDateTime::currentDateTimeUtc();
+    const bool completedChanged = wasCompleted != isCompleted(item);
     touch(row, {FileNameRole, UrlRole, DirectoryRole, PathRole, StateRole,
                 ReceivedBytesRole, TotalBytesRole, ProgressRole, StatusTextRole,
                 FinishedRole, PausedRole, ActiveRole, FailedRole, StartedAtRole,
                 FinishedAtRole, PrivateRole});
+    if (completedChanged)
+        emit completedCountChanged();
 }
 
 void DownloadModel::touch(int row, const QList<int> &roles)
@@ -304,23 +330,30 @@ void DownloadModel::remove(int id)
     endRemoveRows();
     emit countChanged();
     emit publicCountChanged();
+    emit completedCountChanged();
     emit changed();
     save();
 }
 
-void DownloadModel::clearCompleted(bool includePrivate)
+int DownloadModel::clearCompleted(bool includePrivate)
 {
+    int removed = 0;
     for (int i = m_items.size() - 1; i >= 0; --i) {
-        if (!m_items.at(i).finished || (m_items.at(i).privateDownload && !includePrivate))
+        if (!isCompleted(m_items.at(i)) || (m_items.at(i).privateDownload && !includePrivate))
             continue;
         beginRemoveRows({}, i, i);
         m_items.removeAt(i);
         endRemoveRows();
+        ++removed;
     }
+    if (removed == 0)
+        return 0;
     emit countChanged();
     emit publicCountChanged();
+    emit completedCountChanged();
     emit changed();
     save();
+    return removed;
 }
 
 void DownloadModel::clearPrivateDownloads()
@@ -336,8 +369,14 @@ void DownloadModel::clearPrivateDownloads()
     }
     emit countChanged();
     emit publicCountChanged();
+    emit completedCountChanged();
     emit changed();
     save();
+}
+
+bool DownloadModel::isCompleted(const Item &item)
+{
+    return item.state == QWebEngineDownloadRequest::DownloadCompleted;
 }
 
 QString DownloadModel::fullPath(const Item &item)

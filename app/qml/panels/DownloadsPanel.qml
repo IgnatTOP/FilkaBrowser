@@ -9,6 +9,7 @@ SidePanel {
 
     property bool privateMode: false
     readonly property int visibleDownloadCount: privateMode ? DownloadModel.count : DownloadModel.publicCount
+    readonly property int completedDownloadCount: privateMode ? DownloadModel.completedCount : DownloadModel.publicCompletedCount
 
     signal clearList()
 
@@ -153,24 +154,26 @@ SidePanel {
 
             footer: Rectangle {
                 width: list.width
-                height: 38
+                height: root.completedDownloadCount > 0 ? 38 : 0
                 radius: Theme.radiusSm
+                visible: root.completedDownloadCount > 0
+                enabled: root.completedDownloadCount > 0
                 color: clearHover.hovered ? Theme.hoverFill : "transparent"
-                activeFocusOnTab: true
+                activeFocusOnTab: enabled
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Очистить завершённые загрузки")
-                Keys.onReturnPressed: root.clearList()
-                Keys.onEnterPressed: root.clearList()
-                Keys.onSpacePressed: root.clearList()
+                Keys.onReturnPressed: if (enabled) root.clearList()
+                Keys.onEnterPressed: if (enabled) root.clearList()
+                Keys.onSpacePressed: if (enabled) root.clearList()
                 Text {
                     anchors.centerIn: parent
-                    text: qsTr("Очистить завершённые")
+                    text: qsTr("Очистить завершённые (%1)").arg(root.completedDownloadCount)
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeSm
                 }
                 HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.clearList() }
+                TapHandler { enabled: parent.enabled; onTapped: root.clearList() }
             }
         }
     }

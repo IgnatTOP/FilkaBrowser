@@ -20,6 +20,8 @@ class DownloadModel : public QAbstractListModel
     QML_SINGLETON
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int publicCount READ publicCount NOTIFY publicCountChanged)
+    Q_PROPERTY(int completedCount READ completedCount NOTIFY completedCountChanged)
+    Q_PROPERTY(int publicCompletedCount READ publicCompletedCount NOTIFY completedCountChanged)
 
 public:
     enum Roles : int {
@@ -51,6 +53,8 @@ public:
 
     int count() const { return int(m_items.size()); }
     int publicCount() const;
+    int completedCount() const;
+    int publicCompletedCount() const;
 
     Q_INVOKABLE int acceptDownload(QObject *download, const QString &directory,
                                    const QString &fileName, bool privateDownload);
@@ -60,12 +64,13 @@ public:
     Q_INVOKABLE void open(int id) const;
     Q_INVOKABLE void reveal(int id) const;
     Q_INVOKABLE void remove(int id);
-    Q_INVOKABLE void clearCompleted(bool includePrivate = false);
+    Q_INVOKABLE int clearCompleted(bool includePrivate = false);
     Q_INVOKABLE void clearPrivateDownloads();
 
 signals:
     void countChanged();
     void publicCountChanged();
+    void completedCountChanged();
     void changed();
 
 private:
@@ -95,6 +100,7 @@ private:
     void touch(int row, const QList<int> &roles);
     void load();
     void save();
+    static bool isCompleted(const Item &item);
     static QString fullPath(const Item &item);
     static QString humanBytes(qint64 bytes);
     static QString statusText(const Item &item);

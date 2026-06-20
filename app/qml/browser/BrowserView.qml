@@ -567,6 +567,11 @@ Item {
         z: 900
         browser: root
         shell: shell
+        onDownloadsCleared: (count) => {
+            screenshotToast.savedPath = ""
+            screenshotToast.message = qsTr("Очищено %1 загрузок").arg(count)
+            screenshotToast.open()
+        }
     }
 
     // ===== Keyboard shortcuts =====
