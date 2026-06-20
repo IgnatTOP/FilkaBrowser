@@ -5,6 +5,7 @@
 #include <QSqlQuery>
 #include <QStandardPaths>
 #include <QVariant>
+#include <QVariantMap>
 
 BookmarkModel::BookmarkModel(QObject *parent) : QAbstractListModel(parent)
 {
@@ -97,10 +98,23 @@ QHash<int, QByteArray> BookmarkModel::roleNames() const
 
 int BookmarkModel::indexOfUrl(const QString &url) const
 {
+    const QString key = normalizedUrl(QUrl(url));
     for (int i = 0; i < m_entries.size(); ++i)
-        if (m_entries.at(i).url == url)
+        if (normalizedUrl(QUrl(m_entries.at(i).url)) == key)
             return i;
     return -1;
+}
+
+QString BookmarkModel::normalizedUrl(const QUrl &url)
+{
+    QUrl normalized = url.adjusted(QUrl::NormalizePathSegments | QUrl::StripTrailingSlash);
+    normalized.setScheme(normalized.scheme().toLower());
+    normalized.setHost(normalized.host().toLower());
+    normalized.setFragment(QString());
+    if ((normalized.scheme() == QLatin1String("http") && normalized.port() == 80)
+        || (normalized.scheme() == QLatin1String("https") && normalized.port() == 443))
+        normalized.setPort(-1);
+    return normalized.toString(QUrl::FullyEncoded);
 }
 
 bool BookmarkModel::isWebUrl(const QUrl &url)
@@ -111,14 +125,14 @@ bool BookmarkModel::isWebUrl(const QUrl &url)
 
 bool BookmarkModel::contains(const QUrl &url) const
 {
-    return indexOfUrl(url.toString()) >= 0;
+    return indexOfUrl(normalizedUrl(url)) >= 0;
 }
 
 void BookmarkModel::add(const QUrl &url, const QString &title)
 {
     if (!isWebUrl(url))
         return;
-    const QString key = url.toString();
+    const QString key = normalizedUrl(url);
     if (indexOfUrl(key) >= 0)
         return;
 
@@ -149,7 +163,7 @@ void BookmarkModel::add(const QUrl &url, const QString &title)
 
 void BookmarkModel::removeUrl(const QUrl &url)
 {
-    const int i = indexOfUrl(url.toString());
+    const int i = indexOfUrl(normalizedUrl(url));
     if (i >= 0)
         removeAt(i);
 }
@@ -187,6 +201,45 @@ bool BookmarkModel::toggle(const QUrl &url, const QString &title)
     }
     add(url, title);
     return true;
+}
+
+QVariantMap BookmarkModel::importEntries(const QVariantList &entries, const QString &mode)
+{
+    const bool updateExisting = mode == QLatin1String("updateExisting") || mode == QLatin1String("importAll");
+    int added = 0;
+    int skipped = 0;
+
+    for (const QVariant &value : entries) {
+        const QVariantMap map = value.toMap();
+        const QUrl url(map.value(QStringLiteral("url")).toString());
+        if (!isWebUrl(url))
+            continue;
+
+        const QString key = normalizedUrl(url);
+        const QString title = map.value(QStringLiteral("title")).toString();
+        const int existing = indexOfUrl(key);
+        if (existing >= 0) {
+            ++skipped;
+            if (updateExisting && !title.isEmpty() && m_entries[existing].title != title) {
+                m_entries[existing].title = title;
+                emit dataChanged(index(existing), index(existing), {TitleRole});
+                if (m_db.isOpen()) {
+                    QSqlQuery q(m_db);
+                    q.prepare(QStringLiteral("UPDATE bookmarks SET title = ? WHERE url = ?"));
+                    q.addBindValue(title);
+                    q.addBindValue(m_entries[existing].url);
+                    if (!q.exec())
+                        qWarning("Filka: could not update imported bookmark: %s", qPrintable(q.lastError().text()));
+                }
+            }
+            continue;
+        }
+
+        add(QUrl(key), title);
+        ++added;
+    }
+
+    return QVariantMap{{QStringLiteral("added"), added}, {QStringLiteral("skipped"), skipped}};
 }
 
 QVariantList BookmarkModel::search(const QString &query, int limit) const

@@ -18,23 +18,24 @@ Popup {
 
     property var browsers: []
     property string resultText: ""
+    property string importMode: "skipDuplicates"
 
     function refresh() {
         browsers = BrowserImporter.detectInstalled()
     }
 
+    function formatResult(stats) {
+        resultText = qsTr("Добавлено %1, пропущено %2 дублей").arg(stats.added || 0).arg(stats.skipped || 0)
+    }
+
     function importBookmarks(browserId) {
         const entries = BrowserImporter.importBookmarks(browserId)
-        for (let i = 0; i < entries.length; ++i)
-            BookmarkModel.add(entries[i].url, entries[i].title)
-        resultText = qsTr("Импортировано закладок: %1").arg(entries.length)
+        formatResult(BookmarkModel.importEntries(entries, importMode))
     }
 
     function importHistory(browserId) {
         const entries = BrowserImporter.importHistory(browserId)
-        for (let i = 0; i < entries.length; ++i)
-            HistoryModel.recordVisit(entries[i].url, entries[i].title)
-        resultText = qsTr("Импортировано записей истории: %1").arg(entries.length)
+        formatResult(HistoryModel.importEntries(entries, importMode))
     }
 
     onOpened: refresh()
@@ -134,6 +135,32 @@ Popup {
             from: 0
             to: 1
             value: BrowserImporter.progress
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.s2
+
+            Text {
+                text: qsTr("Режим импорта")
+                color: Theme.textSecondary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSm
+            }
+
+            ComboBox {
+                id: importModeBox
+                Layout.fillWidth: true
+                model: [
+                    { text: qsTr("Пропускать дубли"), value: "skipDuplicates" },
+                    { text: qsTr("Обновлять существующие"), value: "updateExisting" },
+                    { text: qsTr("Импортировать всё"), value: "importAll" }
+                ]
+                textRole: "text"
+                valueRole: "value"
+                currentIndex: 0
+                onActivated: root.importMode = currentValue
+            }
         }
 
         ListView {

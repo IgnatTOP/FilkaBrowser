@@ -17,6 +17,7 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QUrl>
+#include <QDateTime>
 #include <QVariantMap>
 
 namespace {
@@ -70,6 +71,16 @@ QString copiedDatabasePath(const QString &sourcePath, QTemporaryDir *tempDir)
     }
 
     return target;
+}
+
+QDateTime chromiumTimeToDateTime(qint64 value)
+{
+    return QDateTime::fromMSecsSinceEpoch((value / 1000) - 11644473600000LL, Qt::UTC);
+}
+
+QDateTime firefoxTimeToDateTime(qint64 value)
+{
+    return QDateTime::fromMSecsSinceEpoch(value / 1000, Qt::UTC);
 }
 
 QSqlDatabase openSqlite(const QString &path, const QString &prefix, QString *connectionName)
@@ -348,7 +359,7 @@ QVariantList BrowserImporter::readChromiumHistory(const QVariantMap &browser) co
 
     {
         QSqlQuery q(db);
-        if (q.exec(QStringLiteral("SELECT url, title FROM urls WHERE url LIKE 'http%' ORDER BY last_visit_time DESC LIMIT 5000"))) {
+        if (q.exec(QStringLiteral("SELECT url, title, last_visit_time FROM urls WHERE url LIKE 'http%' ORDER BY last_visit_time DESC LIMIT 5000"))) {
             while (q.next()) {
                 const QString url = q.value(0).toString();
                 if (!isWebUrl(url))
@@ -356,6 +367,7 @@ QVariantList BrowserImporter::readChromiumHistory(const QVariantMap &browser) co
                 out.append(QVariantMap{
                     {QStringLiteral("url"), url},
                     {QStringLiteral("title"), q.value(1).toString()},
+                    {QStringLiteral("lastVisit"), chromiumTimeToDateTime(q.value(2).toLongLong())},
                 });
             }
         }
@@ -419,7 +431,7 @@ QVariantList BrowserImporter::readFirefoxHistory(const QVariantMap &browser) con
     {
         QSqlQuery q(db);
         if (q.exec(QStringLiteral(
-                "SELECT url, title FROM moz_places "
+                "SELECT url, title, last_visit_date FROM moz_places "
                 "WHERE url LIKE 'http%' AND last_visit_date IS NOT NULL "
                 "ORDER BY last_visit_date DESC LIMIT 5000"))) {
             while (q.next()) {
@@ -429,6 +441,7 @@ QVariantList BrowserImporter::readFirefoxHistory(const QVariantMap &browser) con
                 out.append(QVariantMap{
                     {QStringLiteral("url"), url},
                     {QStringLiteral("title"), q.value(1).toString()},
+                    {QStringLiteral("lastVisit"), firefoxTimeToDateTime(q.value(2).toLongLong())},
                 });
             }
         }
