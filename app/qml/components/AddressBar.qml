@@ -48,6 +48,9 @@ FocusScope {
     // ---- Suggestions ----
     property var suggestions: []       // [{ kind, title, url, label }]
     property int highlight: -1
+    // Visual highlight is initialized for discoverability, but Enter keeps the
+    // raw typed-text behavior until the user explicitly navigates suggestions.
+    property bool highlightTouched: false
     readonly property bool suggesting: field.activeFocus && suggestions.length > 0
 
     // Live web suggestions (from the search engine's autocomplete service),
@@ -57,7 +60,7 @@ FocusScope {
 
     function rebuildSuggestions() {
         var t = field.text.trim()
-        if (t.length === 0) { suggestions = []; highlight = -1; return }
+        if (t.length === 0) { suggestions = []; highlight = -1; highlightTouched = false; return }
 
         var out = []
         // Leading action: navigate straight to a URL, or search the web.
@@ -101,7 +104,8 @@ FocusScope {
         }
 
         suggestions = out
-        highlight = -1
+        highlight = out.length > 0 ? 0 : -1
+        highlightTouched = false
     }
 
     // Debounce typing before hitting the network so we don't fire a request per
@@ -139,23 +143,36 @@ FocusScope {
     }
 
     function moveHighlight(delta) {
-        if (suggestions.length === 0) return
         var n = suggestions.length
-        // -1 acts as "no selection" between the two ends.
-        highlight = highlight + delta
-        if (highlight < -1) highlight = n - 1
-        else if (highlight >= n) highlight = -1
+        if (n === 0) return
+
+        var current = highlight
+        if (current < 0 || current >= n)
+            current = 0
+
+        highlight = (current + delta + n) % n
+        highlightTouched = true
     }
 
-    function acceptSuggestion(i) {
-        if (i >= 0 && i < suggestions.length) {
+    function clearSuggestions() {
+        suggestions = []
+        highlight = -1
+        highlightTouched = false
+    }
+
+    function clearSelection() {
+        highlight = -1
+        highlightTouched = false
+    }
+
+    function acceptSuggestion(i, forceSuggestion) {
+        if ((forceSuggestion || highlightTouched) && i >= 0 && i < suggestions.length) {
             root.navigate(suggestions[i].url)
         } else {
             var url = root.resolve(field.text)
             if (url.length) root.navigate(url)
         }
-        suggestions = []
-        highlight = -1
+        clearSuggestions()
         field.focus = false
     }
 
@@ -200,7 +217,7 @@ FocusScope {
 
             onActiveFocusChanged: {
                 if (activeFocus) selectAll()
-                else { root.suggestions = []; root.highlight = -1 }
+                else root.clearSuggestions()
             }
             // textEdited fires only on user input, not on the displayUrl binding,
             // so suggestions never pop up while pages navigate on their own.
@@ -211,9 +228,9 @@ FocusScope {
                 else
                     netDebounce.stop()
             }
-            onAccepted: root.acceptSuggestion(root.highlight)
+            onAccepted: root.acceptSuggestion(root.highlight, false)
             Keys.onEscapePressed: {
-                if (root.suggestions.length > 0) { root.suggestions = []; root.highlight = -1 }
+                if (root.suggestions.length > 0) root.clearSuggestions()
                 else { text = root.displayUrl; focus = false }
             }
             Keys.onDownPressed: root.moveHighlight(1)
@@ -257,6 +274,10 @@ FocusScope {
 
         contentItem: Column {
             spacing: 2
+            HoverHandler {
+                id: panelHover
+                onHoveredChanged: if (!hovered) root.clearSelection()
+            }
             Repeater {
                 model: root.suggestions
                 delegate: Rectangle {
@@ -300,7 +321,7 @@ FocusScope {
                         }
                     }
                     HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: root.acceptSuggestion(srow.index) }
+                    TapHandler { onTapped: root.acceptSuggestion(srow.index, true) }
                 }
             }
         }
