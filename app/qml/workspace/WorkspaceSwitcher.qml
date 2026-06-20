@@ -8,11 +8,27 @@ Item {
     id: root
     property var workspaces
     property int editIndex: -1
+    property string editorGlyph: "globe"
+    property color editorAccent: Theme.accent
+
+    readonly property var glyphChoices: [
+        { name: "briefcase", label: qsTr("Работа") },
+        { name: "code", label: qsTr("Код") },
+        { name: "graduation-cap", label: qsTr("Учёба") },
+        { name: "house", label: qsTr("Дом") },
+        { name: "globe", label: qsTr("Веб") },
+        { name: "palette", label: qsTr("Идеи") },
+        { name: "sparkles", label: qsTr("Фокус") }
+    ]
+    readonly property var accentChoices: ["#8B5CF6", "#C4B5FD", "#38BDF8", "#34D399", "#F87171", "#FBBF24", "#2E7CF6"]
+
     implicitHeight: 42
     implicitWidth: pillRow.width + Theme.s2 * 2
 
-    function openEditor(index, name) {
+    function openEditor(index, name, glyph, accent) {
         editIndex = index
+        editorGlyph = glyph && glyph.length > 0 ? glyph : "globe"
+        editorAccent = accent || Theme.accent
         nameField.text = name
         editor.open()
         nameField.forceActiveFocus()
@@ -24,9 +40,9 @@ Item {
         if (name.length === 0)
             return
         if (editIndex >= 0)
-            workspaces.renameWorkspace(editIndex, name)
+            workspaces.updateWorkspace(editIndex, name, editorGlyph, editorAccent)
         else
-            workspaces.addWorkspace(name, "globe", Theme.accent)
+            workspaces.addWorkspace(name, editorGlyph, editorAccent)
         editor.close()
     }
 
@@ -72,6 +88,8 @@ Item {
                     onTapped: {
                         menu.targetIndex = pill.index
                         menu.targetName = pill.name
+                        menu.targetGlyph = pill.glyph
+                        menu.targetAccent = pill.accent
                         menu.popup()
                     }
                 }
@@ -125,10 +143,10 @@ Item {
                 color: addHover.hovered ? Theme.textPrimary : Theme.textSecondary
             }
             HoverHandler { id: addHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: root.openEditor(-1, "") }
-            Keys.onReturnPressed: root.openEditor(-1, "")
-            Keys.onEnterPressed: root.openEditor(-1, "")
-            Keys.onSpacePressed: root.openEditor(-1, "")
+            TapHandler { onTapped: root.openEditor(-1, "", "globe", Theme.accent) }
+            Keys.onReturnPressed: root.openEditor(-1, "", "globe", Theme.accent)
+            Keys.onEnterPressed: root.openEditor(-1, "", "globe", Theme.accent)
+            Keys.onSpacePressed: root.openEditor(-1, "", "globe", Theme.accent)
         }
     }
 
@@ -136,6 +154,8 @@ Item {
         id: menu
         property int targetIndex: -1
         property string targetName: ""
+        property string targetGlyph: "globe"
+        property color targetAccent: Theme.accent
         width: 190
         padding: 6
         background: Rectangle {
@@ -146,7 +166,7 @@ Item {
         }
         MenuItem {
             text: qsTr("Переименовать")
-            onTriggered: root.openEditor(menu.targetIndex, menu.targetName)
+            onTriggered: root.openEditor(menu.targetIndex, menu.targetName, menu.targetGlyph, menu.targetAccent)
         }
         MenuItem {
             text: qsTr("Удалить")
@@ -159,7 +179,7 @@ Item {
         id: editor
         modal: true
         focus: true
-        width: 260
+        width: 300
         padding: Theme.s3
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle {
@@ -178,6 +198,23 @@ Item {
                 font.pixelSize: Theme.fontSizeSm
                 font.weight: Font.DemiBold
             }
+            Row {
+                width: parent.width
+                spacing: Theme.s2
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: root.editorGlyph
+                    size: 18
+                    color: root.editorAccent
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Оформление пространства")
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeXs
+                }
+            }
             TextField {
                 id: nameField
                 width: parent.width
@@ -195,6 +232,69 @@ Item {
                     border.color: nameField.activeFocus ? Theme.accent : Theme.outline
                 }
                 onAccepted: root.saveEditor()
+            }
+            Text {
+                width: parent.width
+                text: qsTr("Glyph")
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                font.weight: Font.DemiBold
+            }
+            Flow {
+                width: parent.width
+                spacing: Theme.s2
+                Repeater {
+                    model: root.glyphChoices
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: 32
+                        height: 32
+                        radius: Theme.radiusSm
+                        color: root.editorGlyph === modelData.name ? Qt.rgba(root.editorAccent.r, root.editorAccent.g, root.editorAccent.b, 0.18)
+                              : glyphHover.hovered ? Theme.hoverFill : Theme.card
+                        border.width: root.editorGlyph === modelData.name || activeFocus ? 2 : 1
+                        border.color: activeFocus ? Theme.focusRing : (root.editorGlyph === modelData.name ? root.editorAccent : Theme.outline)
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.RadioButton
+                        Accessible.name: modelData.label
+                        Accessible.checkable: true
+                        Accessible.checked: root.editorGlyph === modelData.name
+
+                        Icon {
+                            anchors.centerIn: parent
+                            name: modelData.name
+                            size: 16
+                            color: root.editorGlyph === modelData.name ? root.editorAccent : Theme.textSecondary
+                        }
+                        HoverHandler { id: glyphHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: root.editorGlyph = modelData.name }
+                        Keys.onReturnPressed: root.editorGlyph = modelData.name
+                        Keys.onEnterPressed: root.editorGlyph = modelData.name
+                        Keys.onSpacePressed: root.editorGlyph = modelData.name
+                    }
+                }
+            }
+            Text {
+                width: parent.width
+                text: qsTr("Accent")
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                font.weight: Font.DemiBold
+            }
+            Flow {
+                width: parent.width
+                spacing: Theme.s2
+                Repeater {
+                    model: root.accentChoices
+                    delegate: AccentSwatch {
+                        required property string modelData
+                        swatchColor: modelData
+                        selected: String(root.editorAccent).toLowerCase() === modelData.toLowerCase()
+                        onClicked: root.editorAccent = modelData
+                    }
+                }
             }
             Pill {
                 anchors.right: parent.right

@@ -346,6 +346,47 @@ void WorkspaceModel::renameWorkspace(int index, const QString &name)
     saveWorkspaceDefinitions();
 }
 
+
+void WorkspaceModel::updateWorkspace(int index, const QString &name, const QString &glyph, const QColor &accent)
+{
+    if (!valid(index))
+        return;
+
+    const QString cleanName = name.trimmed();
+    if (cleanName.isEmpty())
+        return;
+
+    const QString cleanGlyph = glyph.trimmed().isEmpty() ? QStringLiteral("globe") : glyph.trimmed();
+    const QColor cleanAccent = accent.isValid() ? accent : QColor("#8B5CF6");
+
+    QList<int> changedRoles;
+    if (m_items[index].name != cleanName) {
+        m_items[index].name = cleanName;
+        changedRoles.append(NameRole);
+    }
+    if (m_items[index].glyph != cleanGlyph) {
+        m_items[index].glyph = cleanGlyph;
+        changedRoles.append(GlyphRole);
+    }
+    if (m_items[index].accent != cleanAccent) {
+        m_items[index].accent = cleanAccent;
+        changedRoles.append(AccentRole);
+    }
+
+    if (changedRoles.isEmpty())
+        return;
+
+    const QModelIndex mi = createIndex(index, 0);
+    emit dataChanged(mi, mi, changedRoles);
+    if (index == m_activeIndex) {
+        if (changedRoles.contains(NameRole))
+            emit activeNameChanged();
+        if (changedRoles.contains(AccentRole))
+            emit activeIndexChanged();
+    }
+    saveWorkspaceDefinitions();
+}
+
 void WorkspaceModel::setWorkspaceGlyph(int index, const QString &glyph)
 {
     if (!valid(index))

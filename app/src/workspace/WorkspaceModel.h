@@ -64,6 +64,7 @@ public:
     Q_INVOKABLE int addWorkspace(const QString &name, const QString &glyph = QStringLiteral("globe"),
                                  const QColor &accent = QColor("#8B5CF6"));
     Q_INVOKABLE void renameWorkspace(int index, const QString &name);
+    Q_INVOKABLE void updateWorkspace(int index, const QString &name, const QString &glyph, const QColor &accent);
     Q_INVOKABLE void setWorkspaceGlyph(int index, const QString &glyph);
     Q_INVOKABLE void setWorkspaceAccent(int index, const QColor &accent);
     Q_INVOKABLE void removeWorkspace(int index);
